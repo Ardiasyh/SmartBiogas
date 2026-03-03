@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const uid = req.cookies.get("uid")?.value
   const role = req.cookies.get("role")?.value
   const status = req.cookies.get("status")?.value
