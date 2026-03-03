@@ -5,7 +5,11 @@ import { onAuthStateChanged } from "firebase/auth"
 import { auth, db } from "@/lib/firebase"
 import { doc, getDoc } from "firebase/firestore"
 
-export default function UserHeader() {
+type Props = {
+  status?: string
+}
+
+export default function UserHeader({ status }: Props) {
   const [username, setUsername] = useState<string>("")
   const [loading, setLoading] = useState(true)
 
@@ -52,6 +56,9 @@ export default function UserHeader() {
       </h1>
       <p className="text-gray-500">
         Monitoring penggunaan biogas kamu.
+      </p>
+      <p className="text-gray-500">
+        Status akun: {status}
       </p>
     </div>
   )
