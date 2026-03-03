@@ -9,7 +9,7 @@ import DeviceMap from "@/components/admin/DeviceMap";
 
 export default function AdminDashboardPage() {
   const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  // const [search, setSearch] = useState("");
 
   return (
     <div className="p-6 space-y-8">
@@ -46,9 +46,7 @@ export default function AdminDashboardPage() {
       {/* TABLE */}
       <section className="rounded-xl border p-4 bg-card">
         <UserTable
-          selectedProvince={selectedProvince}
-          searchQuery={search}
-          onSearchChange={setSearch}
+          filterProvince={selectedProvince}
         />
       </section>
     </div>
