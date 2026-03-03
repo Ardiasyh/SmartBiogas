@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 const MapContainer = dynamic(
@@ -13,10 +14,6 @@ const TileLayer = dynamic(
 );
 const Marker = dynamic(
   () => import("react-leaflet").then(m => m.Marker),
-  { ssr: false }
-);
-const useMapEvents = dynamic(
-  () => import("react-leaflet").then(m => m.useMapEvents),
   { ssr: false }
 );
 
