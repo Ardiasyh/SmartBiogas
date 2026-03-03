@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { auth } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
+import { sendEmailVerification } from "firebase/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MailCheck } from "lucide-react"
@@ -33,7 +34,7 @@ export default function VerifyEmailPage() {
             Kami sudah mengirim email verifikasi.  
             Setelah diverifikasi, kamu akan otomatis diarahkan ke login.
           </p>
-          <Button variant="outline" onClick={() => auth.currentUser?.sendEmailVerification()}>
+          <Button variant="outline" onClick={() => auth.currentUser && sendEmailVerification(auth.currentUser)}>
             Kirim ulang email
           </Button>
         </CardContent>
