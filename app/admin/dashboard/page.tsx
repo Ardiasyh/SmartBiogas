@@ -27,12 +27,6 @@ export default function AdminDashboardPage() {
           <UserDashboardOverview />
         </div>
 
-        {/* TOTAL ENERGY CHART */}
-        {/* <h2 className="text-lg font-semibold mb-4">
-          Total Energi Seluruh User
-        </h2>
-
-        <TotalEnergyChart /> */}
       </section>
 
       {/* MAP */}

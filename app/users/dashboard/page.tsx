@@ -44,65 +44,111 @@ export default function UserPage() {
     useState<EnergyUnit>("kwh")
 
   useEffect(() => {
+
     let dbRef: any = null
+    let intervalCheck: any = null
+
+    // batas waktu tidak ada data baru = dianggap offline
+    const OFFLINE_TIMEOUT = 60000 // 60 detik
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (!user) return
+
+      if (!user) {
+        setStatus("offline")
+        return
+      }
 
       try {
+
         const userSnap = await getDoc(doc(db, "users", user.uid))
         const fetchedDeviceId = userSnap.data()?.deviceId
 
         if (!fetchedDeviceId) {
-          console.log("DeviceId tidak ditemukan di Firestore")
+          console.log("deviceId tidak ditemukan")
+          setStatus("offline")
           return
         }
 
-        // simpan ke state supaya bisa dipakai chart
         setDeviceId(fetchedDeviceId)
 
-        // ambil 1 log terakhir untuk card realtime
         dbRef = query(
           ref(rtdb, `biogasData/${fetchedDeviceId}/logs`),
           orderByChild("timestamp"),
           limitToLast(1)
         )
 
+        let lastTimestamp = 0
+
         onValue(dbRef, (snapshot) => {
-          if (!snapshot.exists()) return
+
+          if (!snapshot.exists()) {
+            setStatus("offline")
+            return
+          }
 
           snapshot.forEach((child) => {
+
             const latest = child.val()
 
             const rawFlow = Number(latest.flowrate ?? 0)
             const rawPressure = Number(latest.pressure ?? 0)
             const rawTemp = Number(latest.temperature ?? 0)
-            const rawStatus = latest.status ?? "offline"
 
             setFlowRate(rawFlow)
             setPressure(rawPressure)
             setTemperature(rawTemp)
 
-            // energy dihitung dari flowrate
             const calculatedEnergy = calculateEnergyKwh(rawFlow)
             setEnergy(calculatedEnergy)
 
-            setStatus(rawStatus)
+            // simpan waktu terakhir data masuk
+            lastTimestamp = Number(latest.timestamp ?? 0)
+
+            // kalau ada data baru berarti online
+            setStatus("online")
+
           })
+
         })
 
+        // interval pengecekan apakah alat masih kirim data
+        intervalCheck = setInterval(() => {
+
+          const now = Date.now()
+
+          // kalau selisih waktu terlalu lama → offline
+          if (now - lastTimestamp > OFFLINE_TIMEOUT) {
+
+            setStatus("offline")
+
+          }
+
+        }, 10000) // cek tiap 10 detik
+
       } catch (error) {
-        console.error("Gagal mengambil data user:", error)
+
+        console.error("gagal ambil data user:", error)
+        setStatus("offline")
+
       }
+
     })
 
     return () => {
+
       unsubscribeAuth()
+
       if (dbRef) off(dbRef)
+
+      if (intervalCheck) clearInterval(intervalCheck)
+
     }
+
   }, [])
 
+
   return (
+
     <div className="p-8 space-y-6">
 
       <UserHeader status={status} />
@@ -121,36 +167,53 @@ export default function UserPage() {
         onChangeEnergyUnit={setEnergyUnit}
       />
 
-      {/* 🔥 Chart hanya render kalau deviceId sudah ada */}
+
+      {/* render chart hanya jika deviceId ada */}
       {deviceId && (
+
         <div className="space-y-6">
 
-        {/* ENERGY FULL WIDTH */}
-        <ChartTotalEnergyUser deviceId={deviceId} />
+          {/* ENERGY */}
+          <ChartTotalEnergyUser deviceId={deviceId} />
 
-        {/* FLOW + PRESSURE GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <ChartFlowrateUser deviceId={deviceId} />
-          <ChartPressureUser deviceId={deviceId} />
+          {/* FLOW + PRESSURE */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <ChartFlowrateUser deviceId={deviceId} />
+
+            <ChartPressureUser deviceId={deviceId} />
+
+          </div>
+
         </div>
 
-      </div>
       )}
 
 
       <div className="bg-card border rounded-xl p-6 shadow-sm space-y-4">
+
         <div>
+
           <h2 className="text-lg font-semibold">
+
             Lokasi Instalasi Biogas
+
           </h2>
+
           <p className="text-sm text-muted-foreground">
+
             Geser atau klik peta untuk mengatur lokasi lebih akurat.
+
           </p>
+
         </div>
 
         <UserEditableMap />
+
       </div>
 
     </div>
+
   )
+
 }

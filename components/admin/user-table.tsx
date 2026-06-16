@@ -30,11 +30,23 @@ import { ref, onValue } from "firebase/database";
 
 import "leaflet/dist/leaflet.css";
 import { useMapEvents } from "react-leaflet";
+
 const MapContainer = dynamic(() => import("react-leaflet").then(m => m.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then(m => m.TileLayer), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then(m => m.Marker), { ssr: false });
 
-/* ================= TYPES ================= */
+/* ===== PARSER ===== */
+function extractLatLngFromGoogleMaps(url: string) {
+  const qMatch = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (qMatch) return { lat: +qMatch[1], lng: +qMatch[2] };
+
+  const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (atMatch) return { lat: +atMatch[1], lng: +atMatch[2] };
+
+  return null;
+}
+
+/* ===== TYPES ===== */
 interface UserData {
   id: string;
   fullname?: string;
@@ -49,46 +61,34 @@ interface UserData {
 
 type DeviceLiveStatus = "ONLINE" | "OFFLINE" | "UNKNOWN";
 
-/* ================= STATUS CHIP ================= */
+/* ===== STATUS UI ===== */
 function DeviceStatus({ status }: { status: DeviceLiveStatus }) {
-  if (status === "UNKNOWN") {
-    return <span className="text-[11px] text-muted-foreground">Unknown</span>;
-  }
+  if (status === "UNKNOWN") return <span className="text-xs text-muted-foreground">Unknown</span>;
 
   return status === "ONLINE" ? (
-    <span className="flex items-center gap-1 text-[11px] text-green-600">
+    <span className="flex items-center gap-1 text-xs text-green-600">
       <Activity className="w-3 h-3 animate-pulse" /> Online
     </span>
   ) : (
-    <span className="flex items-center gap-1 text-[11px] text-red-600">
+    <span className="flex items-center gap-1 text-xs text-red-600">
       <Power className="w-3 h-3" /> Offline
     </span>
   );
 }
 
-/* ================= MAP PICKER ================= */
-function LocationPicker({
-  lat,
-  lng,
-  onPick,
-}: {
-  lat: number | null;
-  lng: number | null;
-  onPick: (lat: number, lng: number) => void;
-}) {
+/* ===== MAP PICKER ===== */
+function LocationPicker({ lat, lng, onPick }: any) {
   useMapEvents({
     click(e: any) {
       onPick(e.latlng.lat, e.latlng.lng);
     },
   });
 
-  return lat !== null && lng !== null ? (
-    <Marker position={[lat, lng]} />
-  ) : null;
+  return lat && lng ? <Marker position={[lat, lng]} /> : null;
 }
 
-/* ================= MAIN ================= */
-export default function UserTable({ filterProvince }: { filterProvince?: string | null }) {
+/* ===== MAIN ===== */
+export default function UserTable() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [deviceStatus, setDeviceStatus] = useState<Record<string, DeviceLiveStatus>>({});
   const [sortBy, setSortBy] = useState<"name" | "status" | "device">("name");
@@ -98,98 +98,71 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
 
   const [deviceIdInput, setDeviceIdInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
+  const [mapsLink, setMapsLink] = useState("");
+
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
 
-  /* ===== FETCH USERS ===== */
+  /* FETCH USER */
   useEffect(() => {
-    getDocs(collection(db, "users")).then((snap) => {
+    getDocs(collection(db, "users")).then(snap => {
       setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserData[]);
     });
   }, []);
 
-  /* ===== DEVICE STATUS FROM LOG TERAKHIR ===== */
+  /* DEVICE STATUS */
   useEffect(() => {
-  const r = ref(rtdb, "biogasData");
+    const r = ref(rtdb, "biogasData");
 
-  const unsubscribe = onValue(r, (snap) => {
-    const data = snap.val();
-    const map: Record<string, DeviceLiveStatus> = {};
+    const unsub = onValue(r, snap => {
+      const data = snap.val();
+      const map: Record<string, DeviceLiveStatus> = {};
 
-    if (!data) {
-      setDeviceStatus({});
-      return;
+      if (!data) return;
+
+      Object.keys(data).forEach(id => {
+        const logs = data[id]?.logs;
+        if (!logs) return;
+
+        const latest = Object.values(logs).reduce((p: any, c: any) =>
+          c.timestamp > p.timestamp ? c : p
+        );
+
+        map[id] = latest?.status || "UNKNOWN";
+      });
+
+      setDeviceStatus(map);
+    });
+
+    return () => unsub();
+  }, []);
+
+  /* SORT */
+  const processedUsers = useMemo(() => {
+    let list = [...users];
+
+    if (sortBy === "name") {
+      list.sort((a, b) => (a.fullname || "").localeCompare(b.fullname || ""));
     }
 
-    Object.keys(data).forEach((deviceId) => {
-      const logs = data[deviceId]?.logs;
+    if (sortBy === "device") {
+      list.sort((a, b) => (a.deviceId || "").localeCompare(b.deviceId || ""));
+    }
 
-      if (!logs) {
-        map[deviceId] = "UNKNOWN";
-        return;
-      }
+    if (sortBy === "status") {
+      const order = { ONLINE: 0, OFFLINE: 1, UNKNOWN: 2 };
 
-      const logArray = Object.values(logs);
+      list.sort((a, b) => {
+        const sA = deviceStatus[a.deviceId || ""] || "UNKNOWN";
+        const sB = deviceStatus[b.deviceId || ""] || "UNKNOWN";
+        return order[sA] - order[sB];
+      });
+    }
 
-      if (!logArray.length) {
-        map[deviceId] = "UNKNOWN";
-        return;
-      }
+    return list;
+  }, [users, sortBy, deviceStatus]);
 
-      // ambil log dengan timestamp terbesar
-      const latestLog = logArray.reduce((prev: any, current: any) =>
-        current.timestamp > prev.timestamp ? current : prev
-      ) as { status?: string; timestamp?: number };
-
-      const status = latestLog?.status;
-
-      if (status === "ONLINE") map[deviceId] = "ONLINE";
-      else if (status === "OFFLINE") map[deviceId] = "OFFLINE";
-      else map[deviceId] = "UNKNOWN";
-    });
-
-    setDeviceStatus(map);
-  });
-
-  return () => unsubscribe();
-}, []);
-
-  /* ===== FILTER + SORT ===== */
-  const processedUsers = useMemo(() => {
-  let list = users.filter(u =>
-    filterProvince ? u.province === filterProvince : true
-  );
-
-  if (sortBy === "name") {
-    list = [...list].sort((a, b) =>
-      (a.fullname || "").localeCompare(b.fullname || "")
-    );
-  }
-
-  if (sortBy === "device") {
-    list = [...list].sort((a, b) =>
-      (a.deviceId || "").localeCompare(b.deviceId || "")
-    );
-  }
-
-  if (sortBy === "status") {
-    const order: Record<DeviceLiveStatus, number> = {
-      ONLINE: 0,
-      OFFLINE: 1,
-      UNKNOWN: 2,
-    };
-
-    list = [...list].sort((a, b) => {
-      const sA = deviceStatus[a.deviceId || ""] || "UNKNOWN";
-      const sB = deviceStatus[b.deviceId || ""] || "UNKNOWN";
-      return order[sA] - order[sB];
-    });
-  }
-
-  return list;
-}, [users, filterProvince, sortBy, deviceStatus]);
-
-  /* ===== APPROVE ===== */
+  /* APPROVE */
   const handleApprove = async () => {
     if (!activeUser || !deviceIdInput || lat === null || lng === null) return;
 
@@ -201,140 +174,103 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
       lng,
     });
 
-    setUsers(prev =>
-      prev.map(u =>
-        u.id === activeUser.id
-          ? { ...u, status: "Active", deviceId: deviceIdInput, locationName: locationInput, lat, lng }
-          : u
-      )
-    );
-
     setOpen(false);
   };
 
-  /* ================= RENDER ================= */
   return (
-    <div className="rounded-xl border bg-card shadow-sm">
+    <div className="rounded-xl border bg-card">
 
-      {/* SORT CONTROL */}
-      <div className="p-3 border-b flex gap-2">
-        <Button size="sm" variant={sortBy === "name" ? "default" : "outline"} onClick={() => setSortBy("name")}>
-          Sort A-Z
-        </Button>
-        <Button size="sm" variant={sortBy === "status" ? "default" : "outline"} onClick={() => setSortBy("status")}>
-          Sort Status
-        </Button>
-        <Button
-          size="sm"
-          variant={sortBy === "device" ? "default" : "outline"}
-          onClick={() => setSortBy("device")}
-        >
-          Sort Device
-        </Button>
+      {/* SORT */}
+      <div className="p-3 flex gap-2 border-b">
+        <Button size="sm" onClick={() => setSortBy("name")}>A-Z</Button>
+        <Button size="sm" onClick={() => setSortBy("status")}>Status</Button>
+        <Button size="sm" onClick={() => setSortBy("device")}>Device</Button>
       </div>
 
-      <div className="max-h-[420px] overflow-y-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nama</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Device</TableHead>
-              <TableHead>Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nama</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Device</TableHead>
+            <TableHead>Aksi</TableHead>
+          </TableRow>
+        </TableHeader>
 
-          <TableBody>
-            {processedUsers.map(user => (
-              <TableRow key={user.id}>
-                <TableCell>{user.fullname || "-"}</TableCell>
-                <TableCell>{user.email || "-"}</TableCell>
+        <TableBody>
+          {processedUsers.map(user => (
+            <TableRow key={user.id}>
+              <TableCell>{user.fullname || "-"}</TableCell>
+              <TableCell>{user.email || "-"}</TableCell>
 
-                <TableCell>
-                  <Badge variant="outline" className="text-[11px]">
-                    {user.status || "Pending"}
-                  </Badge>
-                  {user.deviceId && (
-                    <DeviceStatus status={deviceStatus[user.deviceId] ?? "UNKNOWN"} />
-                  )}
-                </TableCell>
+              <TableCell>
+                <Badge variant="outline">{user.status || "Pending"}</Badge>
+                {user.deviceId && (
+                  <DeviceStatus status={deviceStatus[user.deviceId] ?? "UNKNOWN"} />
+                )}
+              </TableCell>
 
-                <TableCell>{user.deviceId || "-"}</TableCell>
+              <TableCell>{user.deviceId || "-"}</TableCell>
 
-                <TableCell>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setActiveUser(user);
-                      setDeviceIdInput(user.deviceId || "");
-                      setLocationInput(user.locationName || "");
-                      setLat(user.lat ?? null);
-                      setLng(user.lng ?? null);
-                      setOpen(true);
-                    }}
-                  >
-                    Review
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-
-          <TableFooter>
-            <TableRow>
-              <TableCell colSpan={5}>
-                Total User: {processedUsers.length}
+              <TableCell>
+                <Button onClick={() => {
+                  setActiveUser(user);
+                  setLat(user.lat ?? null);
+                  setLng(user.lng ?? null);
+                  setOpen(true);
+                }}>
+                  Review
+                </Button>
               </TableCell>
             </TableRow>
-          </TableFooter>
-        </Table>
-      </div>
+          ))}
+        </TableBody>
 
-      {/* DIALOG REVIEW */}
+        <TableFooter>
+          <TableRow>
+            <TableCell colSpan={5}>
+              Total User: {processedUsers.length}
+            </TableCell>
+          </TableRow>
+        </TableFooter>
+      </Table>
+
+      {/* DIALOG */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Review Pengguna</DialogTitle>
-            <DialogDescription>
-              Aktivasi device & tentukan lokasi
-            </DialogDescription>
+            <DialogTitle>Set Lokasi</DialogTitle>
+            <DialogDescription>Paste link Google Maps atau klik map</DialogDescription>
           </DialogHeader>
 
-          <Input
-            placeholder="Device ID"
-            value={deviceIdInput}
-            onChange={(e) => setDeviceIdInput(e.target.value)}
-          />
+          <Input placeholder="Device ID" onChange={e => setDeviceIdInput(e.target.value)} />
+          <Input placeholder="Nama Lokasi" onChange={e => setLocationInput(e.target.value)} />
 
           <Input
-            placeholder="Nama Lokasi"
-            value={locationInput}
-            onChange={(e) => setLocationInput(e.target.value)}
+            placeholder="Link Google Maps"
+            onBlur={(e) => {
+              const res = extractLatLngFromGoogleMaps(e.target.value);
+              if (res) {
+                setLat(res.lat);
+                setLng(res.lng);
+              } else {
+                alert("Link tidak valid");
+              }
+            }}
           />
 
-          <div className="h-[250px] rounded border overflow-hidden">
-            <MapContainer
-              center={[lat ?? -2.5, lng ?? 118]}
-              zoom={lat && lng ? 15 : 5}
-              className="h-full w-full"
-            >
+          <div className="h-[250px]">
+            <MapContainer center={[lat ?? -2.5, lng ?? 118]} zoom={lat ? 15 : 5} className="h-full w-full">
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <LocationPicker
-                lat={lat}
-                lng={lng}
-                onPick={(la, ln) => {
-                  setLat(la);
-                  setLng(ln);
-                }}
-              />
+              <LocationPicker lat={lat} lng={lng} onPick={(la: number, ln: number) => {
+                setLat(la);
+                setLng(ln);
+              }} />
             </MapContainer>
           </div>
 
-          <Button onClick={handleApprove} className="w-full">
-            Approve & Simpan
-          </Button>
+          <Button onClick={handleApprove}>Simpan</Button>
         </DialogContent>
       </Dialog>
     </div>

@@ -32,6 +32,7 @@ export default function Sidebar({
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
   }, [])
 
@@ -86,7 +87,7 @@ export default function Sidebar({
             Theme
           </span>
 
-          {/* 🔥 Render theme buttons hanya setelah mounted */}
+          {/* Render theme buttons hanya setelah mounted */}
           {mounted && (
             <div className="flex gap-1">
               <button
