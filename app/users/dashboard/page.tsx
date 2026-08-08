@@ -1,18 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import {
-  ref,
-  onValue,
-  off,
-  query,
-  orderByChild,
-  limitToLast,
-} from "firebase/database"
 import { onAuthStateChanged } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 
-import { rtdb, auth, db } from "@/lib/firebase"
+import { auth, db } from "@/lib/firebase"
+import { watchDeviceTelemetry } from "@/lib/device-telemetry"
 
 import UserEditableMap from "@/components/user/UserEditableMap"
 import UserHeader from "@/components/user/UserHeader"
@@ -45,8 +38,8 @@ export default function UserPage() {
 
   useEffect(() => {
 
-    let dbRef: any = null
-    let intervalCheck: any = null
+    let stopTelemetry: (() => void) | null = null
+    let intervalCheck: ReturnType<typeof setInterval> | null = null
 
     // batas waktu tidak ada data baru = dianggap offline
     const OFFLINE_TIMEOUT = 60000 // 60 detik
@@ -71,58 +64,30 @@ export default function UserPage() {
 
         setDeviceId(fetchedDeviceId)
 
-        dbRef = query(
-          ref(rtdb, `biogasData/${fetchedDeviceId}/logs`),
-          orderByChild("timestamp"),
-          limitToLast(1)
-        )
-
         let lastTimestamp = 0
 
-        onValue(dbRef, (snapshot) => {
-
-          if (!snapshot.exists()) {
+        stopTelemetry = watchDeviceTelemetry(fetchedDeviceId, (latest) => {
+          if (!latest) {
             setStatus("offline")
             return
           }
 
-          snapshot.forEach((child) => {
+          const rawFlow = latest.flowrate
+          const rawPressure = latest.pressure
+          const rawTemp = latest.temperature
 
-            const latest = child.val()
+          setFlowRate(rawFlow)
+          setPressure(rawPressure)
+          setTemperature(rawTemp)
 
-            const rawFlow = Number(latest.flowrate ?? 0)
-            const rawPressure = Number(latest.pressure ?? 0)
-            const rawTemp = Number(latest.temperature ?? 0)
+          setEnergy(latest.energy || calculateEnergyKwh(rawFlow))
 
-            setFlowRate(rawFlow)
-            setPressure(rawPressure)
-            setTemperature(rawTemp)
-
-            const calculatedEnergy = calculateEnergyKwh(rawFlow)
-            setEnergy(calculatedEnergy)
-
-            // simpan waktu terakhir data masuk
-            lastTimestamp = Number(latest.timestamp ?? 0)
-
-            // kalau ada data baru berarti online
-            setStatus("online")
-
-          })
-
+          lastTimestamp = latest.timestamp
+          setStatus(Date.now() - lastTimestamp <= OFFLINE_TIMEOUT ? "online" : "offline")
         })
 
-        // interval pengecekan apakah alat masih kirim data
         intervalCheck = setInterval(() => {
-
-          const now = Date.now()
-
-          // kalau selisih waktu terlalu lama → offline
-          if (now - lastTimestamp > OFFLINE_TIMEOUT) {
-
-            setStatus("offline")
-
-          }
-
+          if (Date.now() - lastTimestamp > OFFLINE_TIMEOUT) setStatus("offline")
         }, 10000) // cek tiap 10 detik
 
       } catch (error) {
@@ -138,7 +103,7 @@ export default function UserPage() {
 
       unsubscribeAuth()
 
-      if (dbRef) off(dbRef)
+      stopTelemetry?.()
 
       if (intervalCheck) clearInterval(intervalCheck)
 

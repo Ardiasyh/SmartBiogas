@@ -80,7 +80,7 @@ export default function CompleteProfilePage() {
         city,
         address,
         role: "user",
-        status: "Pending", // nunggu admin
+        status: "pending", // nunggu admin
         profileCompleted: true,
         createdAt: serverTimestamp(),
       })

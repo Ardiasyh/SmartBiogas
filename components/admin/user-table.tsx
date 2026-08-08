@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 
 import {
   Table,
@@ -24,9 +25,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Activity, Power } from "lucide-react";
 
-import { db, rtdb } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
-import { ref, onValue } from "firebase/database";
+import type { LeafletMouseEvent } from "leaflet";
+import { watchDeviceTelemetry } from "@/lib/device-telemetry";
+import { deviceStatus as telemetryStatus, type Telemetry } from "@/lib/telemetry";
 
 import "leaflet/dist/leaflet.css";
 import { useMapEvents } from "react-leaflet";
@@ -77,9 +80,9 @@ function DeviceStatus({ status }: { status: DeviceLiveStatus }) {
 }
 
 /* ===== MAP PICKER ===== */
-function LocationPicker({ lat, lng, onPick }: any) {
+function LocationPicker({ lat, lng, onPick }: { lat: number | null; lng: number | null; onPick: (lat: number, lng: number) => void }) {
   useMapEvents({
-    click(e: any) {
+    click(e: LeafletMouseEvent) {
       onPick(e.latlng.lat, e.latlng.lng);
     },
   });
@@ -88,7 +91,7 @@ function LocationPicker({ lat, lng, onPick }: any) {
 }
 
 /* ===== MAIN ===== */
-export default function UserTable() {
+export default function UserTable({ filterProvince }: { filterProvince?: string | null }) {
   const [users, setUsers] = useState<UserData[]>([]);
   const [deviceStatus, setDeviceStatus] = useState<Record<string, DeviceLiveStatus>>({});
   const [sortBy, setSortBy] = useState<"name" | "status" | "device">("name");
@@ -98,8 +101,6 @@ export default function UserTable() {
 
   const [deviceIdInput, setDeviceIdInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
-  const [mapsLink, setMapsLink] = useState("");
-
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
 
@@ -112,34 +113,24 @@ export default function UserTable() {
 
   /* DEVICE STATUS */
   useEffect(() => {
-    const r = ref(rtdb, "biogasData");
+    const telemetry = new Map<string, Telemetry | null>();
+    const deviceIds = [...new Set(users.map((user) => user.deviceId).filter((id): id is string => Boolean(id)))];
+    const refresh = () => setDeviceStatus(Object.fromEntries(deviceIds.map((id) => [id, telemetryStatus(telemetry.get(id) ?? null)])));
+    const stops = deviceIds.map((deviceId) => watchDeviceTelemetry(deviceId, (value) => {
+      telemetry.set(deviceId, value);
+      refresh();
+    }));
+    const interval = window.setInterval(refresh, 5_000);
 
-    const unsub = onValue(r, snap => {
-      const data = snap.val();
-      const map: Record<string, DeviceLiveStatus> = {};
-
-      if (!data) return;
-
-      Object.keys(data).forEach(id => {
-        const logs = data[id]?.logs;
-        if (!logs) return;
-
-        const latest = Object.values(logs).reduce((p: any, c: any) =>
-          c.timestamp > p.timestamp ? c : p
-        );
-
-        map[id] = latest?.status || "UNKNOWN";
-      });
-
-      setDeviceStatus(map);
-    });
-
-    return () => unsub();
-  }, []);
+    return () => {
+      stops.forEach((stop) => stop());
+      window.clearInterval(interval);
+    };
+  }, [users]);
 
   /* SORT */
   const processedUsers = useMemo(() => {
-    let list = [...users];
+    const list = filterProvince ? users.filter((user) => user.province === filterProvince) : [...users];
 
     if (sortBy === "name") {
       list.sort((a, b) => (a.fullname || "").localeCompare(b.fullname || ""));
@@ -160,14 +151,14 @@ export default function UserTable() {
     }
 
     return list;
-  }, [users, sortBy, deviceStatus]);
+  }, [users, filterProvince, sortBy, deviceStatus]);
 
   /* APPROVE */
   const handleApprove = async () => {
     if (!activeUser || !deviceIdInput || lat === null || lng === null) return;
 
     await updateDoc(doc(db, "users", activeUser.id), {
-      status: "Active",
+      status: "active",
       deviceId: deviceIdInput,
       locationName: locationInput,
       lat,
@@ -214,14 +205,21 @@ export default function UserTable() {
               <TableCell>{user.deviceId || "-"}</TableCell>
 
               <TableCell>
-                <Button onClick={() => {
-                  setActiveUser(user);
-                  setLat(user.lat ?? null);
-                  setLng(user.lng ?? null);
-                  setOpen(true);
-                }}>
-                  Review
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={() => {
+                    setActiveUser(user);
+                    setLat(user.lat ?? null);
+                    setLng(user.lng ?? null);
+                    setOpen(true);
+                  }}>
+                    Review
+                  </Button>
+                  {user.deviceId && (
+                    <Button asChild variant="outline">
+                      <Link href={`/admin/user/device/${user.deviceId}`}>Detail</Link>
+                    </Button>
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}

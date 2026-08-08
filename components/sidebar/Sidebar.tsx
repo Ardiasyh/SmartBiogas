@@ -9,13 +9,14 @@ import {
   Sun,
   Moon,
   Laptop,
+  type LucideIcon,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 
 type MenuItem = {
   label: string
   href: string
-  icon: any
+  icon: LucideIcon
 }
 
 export default function Sidebar({

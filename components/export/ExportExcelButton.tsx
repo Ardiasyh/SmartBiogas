@@ -2,6 +2,7 @@
 
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 type RealtimeData = {
   temperature: number;
@@ -37,7 +38,10 @@ export default function ExportExcelButton({
   };
 
   const exportToExcel = () => {
-    if (!history.length) return;
+    if (!history.length) {
+      toast.error("Belum ada histori yang dapat diexport.");
+      return;
+    }
 
     const excelData = history.map((d, i) => ({
       No: i + 1,
@@ -85,18 +89,25 @@ export default function ExportExcelButton({
       .toISOString()
       .split("T")[0];
 
-    XLSX.writeFile(
-      workbook,
-      `biogas-${deviceId}-${now}.xlsx`
-    );
+    try {
+      XLSX.writeFile(
+        workbook,
+        `biogas-${deviceId}-${now}.xlsx`
+      );
+      toast.success(`${history.length} data diexport.`);
+    } catch (error) {
+      console.error("Gagal export Excel:", error);
+      toast.error("Export gagal. Periksa console browser.");
+    }
   };
 
   return (
     <Button
       onClick={exportToExcel}
+      disabled={!history.length}
       className="rounded-xl shadow-sm hover:shadow-md transition-all"
     >
-      Export Excel
+      {history.length ? `Export ${history.length} data` : "Menunggu histori"}
     </Button>
   );
 }

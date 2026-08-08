@@ -1,4 +1,4 @@
-import { Activity, PauseCircle, Power } from "lucide-react";
+import { Activity, PauseCircle, Power, type LucideIcon } from "lucide-react";
 
 export function DeviceStatus({
   active,
@@ -42,7 +42,7 @@ function StatusItem({
   value,
   color,
   dot,
-}: any) {
+}: { icon: LucideIcon; label: string; value: number; color: string; dot: string }) {
   return (
     <div className={`flex items-center gap-2 ${color}`}>
       <span className={`w-2 h-2 rounded-full ${dot} animate-pulse`} />

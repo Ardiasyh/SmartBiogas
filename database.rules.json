@@ -1,0 +1,20 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "biogasData": {
+      "$deviceId": {
+        ".read": "auth != null && (auth.token.role === 'admin' || auth.token.deviceId === $deviceId)",
+        "realtime": {
+          ".write": "auth != null && auth.token.role === 'device' && auth.token.deviceId === $deviceId"
+        },
+        "logs": {
+          ".indexOn": ["timestamp"],
+          "$logId": {
+            ".write": "auth != null && auth.token.role === 'device' && auth.token.deviceId === $deviceId"
+          }
+        }
+      }
+    }
+  }
+}

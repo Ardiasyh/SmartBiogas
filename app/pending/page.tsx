@@ -37,24 +37,22 @@ export default function PendingPage() {
           const data = snap.data()
 
           // 🔥 STATUS SUDAH ACTIVE
-          if (data.status === "Active") {
-          await fetch("/api/auth/sync", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              uid: user.uid,
-              role: data.role,
-              status: data.status,
-              profileCompleted: data.profileCompleted,
-            }),
-          })
+          if (data.status?.toLowerCase() === "active") {
+            const idToken = await user.getIdToken()
+            const response = await fetch("/api/auth/sync", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${idToken}` },
+            })
+            const body = await response.json()
+            if (!response.ok) {
+              toast.error(body.error ?? "Gagal membuat sesi")
+              return
+            }
 
-          router.replace(
-            data.role === "admin"
-              ? "/admin/dashboard"
-              : "/users/dashboard"
-          )
-        }
+            await user.getIdToken(true)
+
+            router.replace(body.access.role === "admin" ? "/admin/dashboard" : "/users/dashboard")
+          }
 
           // ⏳ MASIH PENDING
           setLoading(false)

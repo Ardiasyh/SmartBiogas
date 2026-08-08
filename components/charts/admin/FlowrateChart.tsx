@@ -16,7 +16,7 @@ const convertFlow = (v: number, u: FlowUnit) =>
   u === "lmin" ? (v * 1000) / 60 : v;
 
 type Props = {
-  data: any[];
+  data: Array<{ index?: number; flowrate?: number }>;
   unit: FlowUnit;
 };
 

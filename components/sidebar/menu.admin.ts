@@ -1,7 +1,7 @@
 import {
   LayoutDashboard,
   Users,
-  Settings,
+  MapPin,
 } from "lucide-react"
 
 export const adminMenu = [
@@ -16,8 +16,8 @@ export const adminMenu = [
     icon: Users,
   },
   {
-    label: "Settings",
-    href: "/admin/settings",
-    icon: Settings,
+    label: "Peta Perangkat",
+    href: "/admin/device-map",
+    icon: MapPin,
   },
 ]

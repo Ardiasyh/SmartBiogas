@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   User,
-  History,
 } from "lucide-react"
 
 export const userMenu = [
@@ -14,10 +13,5 @@ export const userMenu = [
     label: "Profil",
     href: "/users/user",
     icon: User,
-  },
-  {
-    label: "Aktivitas",
-    href: "/user/activity",
-    icon: History,
   },
 ]

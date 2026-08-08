@@ -26,7 +26,7 @@ export default function ResetPasswordPage() {
     try {
       await sendPasswordResetEmail(auth, email)
       toast.success("Link reset password dikirim ke email kamu")
-    } catch (err: any) {
+    } catch {
       toast.error("Email tidak terdaftar atau error")
     } finally {
       setLoading(false)

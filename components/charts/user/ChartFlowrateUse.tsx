@@ -67,7 +67,7 @@ export default function ChartFlowrateUser({ deviceId }: Props) {
   return (
     <div className="w-full h-[380px] bg-card border rounded-2xl p-6 shadow-sm">
       <h2 className="text-lg font-semibold mb-6">
-        Flowrate Biogas (Realtime)
+        Flowrate Biogas (20 data terbaru)
       </h2>
 
       <ResponsiveContainer width="100%" height="85%">

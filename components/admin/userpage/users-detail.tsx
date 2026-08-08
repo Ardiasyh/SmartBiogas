@@ -1,17 +1,12 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { db, rtdb } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 
-import { collection, getDocs } from "firebase/firestore";
-
-import {
-  ref,
-  onValue,
-  query,
-  limitToLast,
-  orderByChild,
-} from "firebase/database";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { watchDeviceTelemetry } from "@/lib/device-telemetry";
+import { getHistoryPage, type HistoryPoint } from "@/lib/device-history";
+import { mergeHistoryPage, type HistoryCursor } from "@/lib/history-pagination";
 
 import Link from "next/link";
 
@@ -132,10 +127,12 @@ type RealtimeData = {
   flowrate: number;
   energy: number;
 
-  timestamp?: string | number;
+  timestamp?: number;
 
   index?: number;
 };
+
+const HISTORY_PAGE_SIZE = 100;
 
 export default function UserDetail({
   deviceId,
@@ -149,7 +146,19 @@ export default function UserDetail({
     useState<RealtimeData | null>(null);
 
   const [history, setHistory] =
-    useState<RealtimeData[]>([]);
+    useState<(RealtimeData & HistoryPoint)[]>([]);
+
+  const [historyCursor, setHistoryCursor] =
+    useState<HistoryCursor | null>(null);
+
+  const [hasOlderHistory, setHasOlderHistory] =
+    useState(false);
+
+  const [loadingHistory, setLoadingHistory] =
+    useState(false);
+
+  const [historyError, setHistoryError] =
+    useState<string | null>(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -173,10 +182,7 @@ export default function UserDetail({
 
   useEffect(() => {
     import("leaflet").then((L) => {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-expect-error
-      delete L.Icon.Default.prototype
-        ._getIconUrl;
+      delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
 
       L.Icon.Default.mergeOptions({
         iconUrl: "/leaflet/marker-icon.png",
@@ -196,17 +202,8 @@ export default function UserDetail({
 
   useEffect(() => {
     const run = async () => {
-      const snap = await getDocs(
-        collection(db, "users")
-      );
-
-      snap.forEach((doc) => {
-        if (
-          doc.data().deviceId === deviceId
-        ) {
-          setUser(doc.data() as UserData);
-        }
-      });
+      const snap = await getDocs(query(collection(db, "users"), where("deviceId", "==", deviceId), limit(1)));
+      setUser(snap.docs[0]?.data() as UserData | undefined ?? null);
 
       setLoading(false);
     };
@@ -217,57 +214,48 @@ export default function UserDetail({
   /* ================= REALTIME + HISTORY ================= */
 
   useEffect(() => {
-    const logsRef = query(
-      ref(rtdb, `biogasData/${deviceId}/logs`),
-      orderByChild("timestamp")
-    );
+    let cancelled = false;
+    setLoadingHistory(true);
+    setHistory([]);
+    setHistoryCursor(null);
+    setHasOlderHistory(false);
+    setHistoryError(null);
 
-    return onValue(logsRef, (snap) => {
-      const data = snap.val();
-
-      if (!data) return;
-
-      const arr = Object.values(data)
-        .sort((a: any, b: any) => {
-          return (
-            (a.timestamp ?? 0) -
-            (b.timestamp ?? 0)
-          );
-        }) as any[];
-
-      const formatted = arr.map(
-        (d, i) => ({
-          temperature:
-            d.temperature ?? 0,
-
-          pressure:
-            d.pressure ?? 0,
-
-          flowrate:
-            d.flowrate ?? 0,
-
-          energy:
-            d.energy ??
-            calculateEnergyKwh(
-              d.flowrate ?? 0
-            ),
-
-          timestamp:
-            d.timestamp ?? null,
-
-          index: i + 1,
-        })
-      );
-
+    getHistoryPage(deviceId, undefined, HISTORY_PAGE_SIZE).then((page) => {
+      if (cancelled) return;
+      const formatted = page.map((point, index) => ({ ...point, energy: point.energy || calculateEnergyKwh(point.flowrate), index: index + 1 }));
       setHistory(formatted);
+      setHistoryCursor(page[0] ?? null);
+      setHasOlderHistory(page.length === HISTORY_PAGE_SIZE);
+    }).catch((error: unknown) => {
+      if (!cancelled) setHistoryError(error instanceof Error ? error.message : "Gagal memuat histori.");
+    }).finally(() => !cancelled && setLoadingHistory(false));
 
-      setRealtime(
-        formatted[
-          formatted.length - 1
-        ]
-      );
+    const stopTelemetry = watchDeviceTelemetry(deviceId, (value) => {
+      setRealtime(value ? { ...value, energy: value.energy || calculateEnergyKwh(value.flowrate) } : null);
     });
+
+    return () => {
+      cancelled = true;
+      stopTelemetry();
+    };
   }, [deviceId]);
+
+  const loadOlderHistory = async () => {
+    if (!historyCursor || loadingHistory) return;
+    setLoadingHistory(true);
+    try {
+      const page = await getHistoryPage(deviceId, historyCursor, HISTORY_PAGE_SIZE);
+      const formatted = page.map((point) => ({ ...point, energy: point.energy || calculateEnergyKwh(point.flowrate) }));
+      setHistory((current) => mergeHistoryPage(current, formatted).map((point, index) => ({ ...point, index: index + 1 })));
+      setHistoryCursor(page[0] ?? historyCursor);
+      setHasOlderHistory(page.length === HISTORY_PAGE_SIZE);
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : "Gagal memuat histori.");
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   /* ================= CHART DATA ================= */
 
@@ -329,7 +317,19 @@ export default function UserDetail({
           deviceId={deviceId}
         />
 
+        <Button
+          variant="outline"
+          disabled={!hasOlderHistory || loadingHistory}
+          onClick={loadOlderHistory}
+        >
+          {loadingHistory ? "Memuat..." : hasOlderHistory ? "Muat data lebih lama" : "Semua histori dimuat"}
+        </Button>
+
       </div>
+
+      {historyError && (
+        <p className="text-sm text-destructive">Histori gagal dimuat: {historyError}</p>
+      )}
 
       {/* USER INFO */}
       <Card>
@@ -360,6 +360,7 @@ export default function UserDetail({
             <a
               href={googleMapsUrl}
               target="_blank"
+              rel="noreferrer"
               className="text-primary underline text-xs"
             >
               Buka di Google Maps
@@ -657,4 +658,4 @@ export default function UserDetail({
 
     </div>
   );
-} 
+}

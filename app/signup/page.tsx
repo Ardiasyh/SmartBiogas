@@ -77,14 +77,14 @@ export default function SignupPage() {
         province: form.province,
         city: form.city,
         address: form.address,
-        status: "Pending",          // admin approval
+        status: "pending",          // admin approval
         profileCompleted: true,
         createdAt: serverTimestamp(),
       })
 
       router.push("/verify-email")
-    } catch (err: any) {
-      setError(err.message || "Gagal mendaftar.")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal mendaftar.")
     } finally {
       setLoading(false)
     }

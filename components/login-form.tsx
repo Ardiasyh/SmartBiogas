@@ -1,15 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { auth, db } from "@/lib/firebase"
+import { auth } from "@/lib/firebase"
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
 } from "firebase/auth"
-import { doc, getDoc } from "firebase/firestore"
 import { useRouter } from "next/navigation"
-import { setCookie } from "cookies-next"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
 
@@ -49,42 +47,32 @@ export default function LoginForm({
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-
-  const cookieAge = remember ? 60 * 60 * 24 * 7 : 60 * 60 * 24
 
   // ===============================
   // POST LOGIN CHECK
   // ===============================
-  const afterLogin = async (uid: string) => {
-  const snap = await getDoc(doc(db, "users", uid))
+  const afterLogin = async () => {
+    const idToken = await auth.currentUser?.getIdToken()
+    if (!idToken) throw new Error("Sesi Firebase tidak ditemukan")
 
-  if (!snap.exists()) {
-    toast.info("Lengkapi profil dulu ya")
-    router.push("/signup/complete-profile")
-    return
+    const response = await fetch("/api/auth/sync", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}` },
+    })
+    const body = await response.json()
+    if (!response.ok) throw new Error(body.error ?? "Gagal membuat sesi")
+
+    await auth.currentUser?.getIdToken(true)
+
+    const access = body.access
+    if (!access.profileCompleted) return router.push("/signup/complete-profile")
+    if (access.status !== "active") return router.push("/pending")
+
+    toast.success("Login berhasil")
+    router.push(access.role === "admin" ? "/admin/dashboard" : "/users/dashboard")
   }
-
-  const data = snap.data()
-
-  if (data.status !== "Active") {
-    toast.warning("Akun kamu belum disetujui admin")
-    return
-  }
-
-  setCookie("uid", uid, { maxAge: cookieAge })
-  setCookie("role", data.role, { maxAge: cookieAge })
-
-  toast.success("Login berhasil")
-
-  router.push(
-    data.role === "admin"
-      ? "/admin/dashboard"
-      : "/users/dashboard"
-  )
-}
 
   // ===============================
   // EMAIL LOGIN
@@ -99,7 +87,7 @@ export default function LoginForm({
         return
       }
 
-      await afterLogin(cred.user.uid)
+      await afterLogin()
     } catch {
       toast.error("Email atau password salah")
     } finally {
@@ -114,8 +102,8 @@ export default function LoginForm({
     setLoading(true)
     try {
       const provider = new GoogleAuthProvider()
-      const cred = await signInWithPopup(auth, provider)
-      await afterLogin(cred.user.uid)
+      await signInWithPopup(auth, provider)
+      await afterLogin()
     } catch {
       toast.error("Login Google gagal")
     } finally {
@@ -192,16 +180,6 @@ export default function LoginForm({
                   </button>
                   </div>
                 </Field>
-
-                {/* REMEMBER */}
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={() => setRemember(!remember)}
-                  />
-                  Remember me
-                </label>
 
                 <Button type="submit" disabled={loading} className="w-full">
                   {loading ? "Logging in..." : "Login"}

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ref, onValue } from "firebase/database";
+import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
-import { rtdb, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { watchDeviceTelemetry } from "@/lib/device-telemetry";
+import type { Telemetry } from "@/lib/telemetry";
 
 import {
   Card,
@@ -50,92 +51,58 @@ export default function AdminDashboardOverview() {
   const [offlineDevices, setOfflineDevices] = useState(0);
 
   const [rawLogs, setRawLogs] = useState<RawLog[]>([]);
-  const [chartData, setChartData] = useState<any[]>([]);
   const [energyUnit, setEnergyUnit] = useState<EnergyUnit>("kwh");
 
-  /* ================= REALTIME DEVICE DATA ================= */
-
-  useEffect(() => {
-    const dataRef = ref(rtdb, "biogasData");
-
-    const unsubscribe = onValue(dataRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data) return;
-
-      let totalEnergyLocal = 0;
-      let online = 0;
-      let offline = 0;
-      const now = Date.now();
-      const allLogs: RawLog[] = [];
-
-      Object.entries<any>(data).forEach(([deviceId, deviceNode]) => {
-        const logs = deviceNode?.logs;
-        if (!logs) {
-          offline++;
-          return;
-        }
-
-        const logArray = Object.values<any>(logs);
-
-        if (logArray.length === 0) {
-          offline++;
-          return;
-        }
-
-        const latestLog = logArray.reduce((latest, current) => {
-          const currentTs = Number(current.timestamp || 0);
-          const latestTs = Number(latest?.timestamp || 0);
-          return currentTs > latestTs ? current : latest;
-        });
-
-        const latestTimestamp = Number(latestLog.timestamp || 0);
-        const latestEnergy = Number(latestLog.energy || 0);
-
-        totalEnergyLocal += latestEnergy;
-
-        const diff = now - latestTimestamp;
-        diff <= OFFLINE_THRESHOLD ? online++ : offline++;
-
-        logArray.forEach((log) => {
-          allLogs.push({
-            timestamp: Number(log.timestamp || 0),
-            energy: Number(log.energy || 0),
-          });
-        });
-      });
-
-      setTotalEnergy(totalEnergyLocal);
-      setOnlineDevices(online);
-      setOfflineDevices(offline);
-
-      allLogs.sort((a, b) => a.timestamp - b.timestamp);
-      const last20 = allLogs.slice(-20);
-      setRawLogs(last20);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  /* ================= CHART UPDATE SAAT UNIT BERUBAH ================= */
-
-  useEffect(() => {
-    const formatted = rawLogs.map((log) => ({
+  const chartData = useMemo(
+    () => rawLogs.map((log) => ({
       time: formatTime(log.timestamp),
       energy: convertEnergy(log.energy, energyUnit),
-    }));
-
-    setChartData(formatted);
-  }, [rawLogs, energyUnit]);
-
-  /* ================= USER COUNT ================= */
+    })),
+    [rawLogs, energyUnit],
+  );
 
   useEffect(() => {
+    const telemetry = new Map<string, Telemetry | null>();
+    const stops = new Map<string, () => void>();
+
+    const refresh = () => {
+      const values = [...telemetry.values()].filter((value): value is Telemetry => value !== null);
+      const now = Date.now();
+      setTotalEnergy(values.reduce((total, value) => total + value.energy, 0));
+      setOnlineDevices(values.filter((value) => now - value.timestamp <= OFFLINE_THRESHOLD).length);
+      setOfflineDevices(Math.max(0, stops.size - values.filter((value) => now - value.timestamp <= OFFLINE_THRESHOLD).length));
+      setRawLogs(values.map(({ timestamp, energy }) => ({ timestamp, energy })).sort((a, b) => a.timestamp - b.timestamp).slice(-20));
+    };
+
     const unsubscribe = onSnapshot(collection(db, "users"), (snap) => {
-      const users = snap.docs.map((d) => d.data());
-      setActiveUsers(users.filter((u: any) => u.deviceId).length);
+      const deviceIds = new Set(
+        snap.docs.map((document) => document.data().deviceId).filter((value): value is string => typeof value === "string" && value.length > 0),
+      );
+      setActiveUsers(deviceIds.size);
+
+      stops.forEach((stop, deviceId) => {
+        if (deviceIds.has(deviceId)) return;
+        stop();
+        stops.delete(deviceId);
+        telemetry.delete(deviceId);
+      });
+
+      deviceIds.forEach((deviceId) => {
+        if (stops.has(deviceId)) return;
+        stops.set(deviceId, watchDeviceTelemetry(deviceId, (value) => {
+          telemetry.set(deviceId, value);
+          refresh();
+        }));
+      });
+      refresh();
     });
 
-    return () => unsubscribe();
+    const interval = window.setInterval(refresh, 5_000);
+    return () => {
+      unsubscribe();
+      window.clearInterval(interval);
+      stops.forEach((stop) => stop());
+    };
   }, []);
 
   const displayEnergy = convertEnergy(totalEnergy, energyUnit);

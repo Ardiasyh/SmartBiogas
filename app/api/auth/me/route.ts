@@ -1,22 +1,16 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE, sessionAccount } from "@/lib/server-session";
 
-export async function GET(req: Request) {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return NextResponse.json({ error: "Unauthorized" });
-
-  const uid = authHeader.replace("Bearer ", "").trim();
-
+export async function GET() {
   try {
-    const snap = await getDoc(doc(db, "users", uid));
+    const session = (await cookies()).get(SESSION_COOKIE)?.value;
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!snap.exists()) {
-      return NextResponse.json({ error: "Not Found" });
-    }
-
-    return NextResponse.json(snap.data());
-  } catch (e) {
-    return NextResponse.json({ error: "Server Error" });
+    const account = await sessionAccount(session);
+    if (!account) return NextResponse.json({ error: "Not Found" }, { status: 404 });
+    return NextResponse.json({ ...account.profile, access: account.access });
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }

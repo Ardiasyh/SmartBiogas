@@ -86,7 +86,7 @@ export default function ChartEnergyUser({ deviceId }: Props) {
       {/* HEADER */}
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-lg font-semibold">
-          Total Energi Biogas (Realtime)
+          Total Energi Biogas (20 data terbaru)
         </h2>
 
         <div className="text-right">

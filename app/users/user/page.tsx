@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { auth, db, rtdb } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { ref, query, limitToLast, onValue } from "firebase/database";
+import { watchDeviceTelemetry } from "@/lib/device-telemetry";
+import type { Telemetry } from "@/lib/telemetry";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -17,16 +18,9 @@ type UserData = {
   lng?: number;
 };
 
-type RealtimeData = {
-  temperature: number;
-  pressure: number;
-  flowrate: number;
-  energy: number;
-};
-
 export default function UserProfilePage() {
   const [user, setUser] = useState<UserData | null>(null);
-  const [realtime, setRealtime] = useState<RealtimeData | null>(null);
+  const [realtime, setRealtime] = useState<Telemetry | null>(null);
   const [loading, setLoading] = useState(true);
 
   /* ================= FETCH USER ================= */
@@ -60,25 +54,7 @@ export default function UserProfilePage() {
   useEffect(() => {
     if (!user?.deviceId) return;
 
-    const logsRef = query(
-      ref(rtdb, `biogasData/${user.deviceId}/logs`),
-      limitToLast(1)
-    );
-
-    return onValue(logsRef, (snap) => {
-      const data = snap.val();
-      if (!data) return;
-
-      const arr = Object.values(data) as any[];
-      const last = arr[0];
-
-      setRealtime({
-        temperature: last.temperature ?? 0,
-        pressure: last.pressure ?? 0,
-        flowrate: last.flowrate ?? 0,
-        energy: last.energy ?? 0,
-      });
-    });
+    return watchDeviceTelemetry(user.deviceId, setRealtime);
   }, [user]);
 
   if (loading) return <p className="p-6">Loading...</p>;
@@ -111,6 +87,7 @@ export default function UserProfilePage() {
                 <a
                   href={googleMapsUrl}
                   target="_blank"
+                  rel="noreferrer"
                   className="text-primary underline text-xs"
                 >
                   Buka di Google Maps

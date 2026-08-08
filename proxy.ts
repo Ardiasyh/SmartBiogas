@@ -1,14 +1,8 @@
-// middleware.ts
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { SESSION_COOKIE, sessionAccount } from "@/lib/server-session"
 
-export function proxy(req: NextRequest) {
-  const uid = req.cookies.get("uid")?.value
-  const role = req.cookies.get("role")?.value
-  const status = req.cookies.get("status")?.value
-  const profileCompleted =
-    req.cookies.get("profileCompleted")?.value === "true"
-
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // =====================
@@ -26,14 +20,25 @@ export function proxy(req: NextRequest) {
   // =====================
   // NOT LOGGED IN
   // =====================
-  if (!uid) {
+  const session = req.cookies.get(SESSION_COOKIE)?.value
+  if (!session) {
     return NextResponse.redirect(new URL("/login", req.url))
   }
+
+  let account
+  try {
+    account = await sessionAccount(session)
+  } catch {
+    const response = NextResponse.redirect(new URL("/login", req.url))
+    response.cookies.delete(SESSION_COOKIE)
+    return response
+  }
+  if (!account) return NextResponse.redirect(new URL("/login", req.url))
 
   // =====================
   // PROFILE NOT COMPLETE
   // =====================
-  if (!profileCompleted) {
+  if (!account.access.profileCompleted) {
     if (!pathname.startsWith("/signup/complete-profile")) {
       return NextResponse.redirect(
         new URL("/signup/complete-profile", req.url)
@@ -45,7 +50,7 @@ export function proxy(req: NextRequest) {
   // =====================
   // STATUS PENDING
   // =====================
-  if (status === "Pending") {
+  if (account.access.status !== "active") {
     if (!pathname.startsWith("/pending")) {
       return NextResponse.redirect(new URL("/pending", req.url))
     }
@@ -55,7 +60,7 @@ export function proxy(req: NextRequest) {
   // =====================
   // ROLE GUARD (ADMIN)
   // =====================
-  if (pathname.startsWith("/admin") && role !== "admin") {
+  if (pathname.startsWith("/admin") && account.access.role !== "admin") {
     return NextResponse.redirect(
       new URL("/users/dashboard", req.url)
     )

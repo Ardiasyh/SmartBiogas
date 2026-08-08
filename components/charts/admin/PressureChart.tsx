@@ -16,7 +16,7 @@ const convertPressure = (v: number, u: PressureUnit) =>
   u === "bar" ? v / 100 : v;
 
 type Props = {
-  data: any[];
+  data: Array<{ index?: number; pressure?: number }>;
   unit: PressureUnit;
 };
 

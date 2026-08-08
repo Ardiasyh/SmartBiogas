@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
+import type { Icon, LeafletEvent, Marker as LeafletMarker } from "leaflet"
 import { onAuthStateChanged } from "firebase/auth"
 import { auth, db } from "@/lib/firebase"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
@@ -25,16 +26,6 @@ const Marker = dynamic(
   { ssr: false }
 )
 
-const useMapEventsDynamic = dynamic(
-  () => import("react-leaflet").then(m => m.useMapEvents),
-  { ssr: false }
-)
-
-const useMapDynamic = dynamic(
-  () => import("react-leaflet").then(m => m.useMap),
-  { ssr: false }
-)
-
 /* ================= MAIN COMPONENT ================= */
 
 export default function UserEditableMap() {
@@ -43,12 +34,12 @@ export default function UserEditableMap() {
   const [uid, setUid] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [defaultIcon, setDefaultIcon] = useState<any>(null)
+  const [defaultIcon, setDefaultIcon] = useState<Icon | null>(null)
 
   /* LOAD LEAFLET ICON DI CLIENT */
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const L = require("leaflet")
+      import("leaflet").then((L) => {
 
       const icon = L.icon({
         iconUrl: "/leaflet/marker-icon.png",
@@ -60,7 +51,8 @@ export default function UserEditableMap() {
         shadowSize: [41, 41],
       })
 
-      setDefaultIcon(icon)
+        setDefaultIcon(icon)
+      })
     }
   }, [])
 
@@ -126,8 +118,8 @@ export default function UserEditableMap() {
               icon={defaultIcon}
               draggable
               eventHandlers={{
-                dragend: (e: any) => {
-                  const pos = e.target.getLatLng()
+                dragend: (e: LeafletEvent) => {
+                  const pos = (e.target as LeafletMarker).getLatLng()
                   setLat(pos.lat)
                   setLng(pos.lng)
                 },

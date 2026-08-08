@@ -1,38 +1,22 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
+import { SESSION_COOKIE, createSession } from "@/lib/server-session"
 
 export async function POST(req: Request) {
-  const body = await req.json()
+  try {
+    const result = await createSession(req)
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const {
-    uid,
-    role,
-    status,
-    profileCompleted,
-  } = body
-
-  const cookieStore = cookies()
-
-  ;(await cookieStore).set("uid", uid, {
-    httpOnly: false,
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
-  })
-
-  ;(await cookieStore).set("role", role, {
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
-  })
-
-  ;(await cookieStore).set("status", status.toLowerCase(), {
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
-  })
-
-  ;(await cookieStore).set("profileCompleted", String(profileCompleted), {
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
-  })
-
-  return NextResponse.json({ success: true })
+    const response = NextResponse.json({ access: result.account.access })
+    response.cookies.set(SESSION_COOKIE, result.session, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+    })
+    ;["uid", "role", "status", "profileCompleted"].forEach((name) => response.cookies.delete(name))
+    return response
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
 }
