@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasHistoryRange, mergeHistoryPage, toHistoryRange } from "../lib/history-pagination";
+import { hasHistoryRange, historyMode, mergeHistoryPage, toHistoryRange } from "../lib/history-pagination";
 
 describe("mergeHistoryPage", () => {
   it("keeps history ordered without duplicating the cursor item", () => {
@@ -29,5 +29,7 @@ describe("toHistoryRange", () => {
   it("distinguishes an applied range from the default realtime mode", () => {
     expect(hasHistoryRange({})).toBe(false);
     expect(hasHistoryRange({ from: 1 })).toBe(true);
+    expect(historyMode({})).toBe("live");
+    expect(historyMode({ from: 1 })).toBe("range");
   });
 });

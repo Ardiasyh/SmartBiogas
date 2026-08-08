@@ -1,11 +1,11 @@
-import { endAt, get, limitToLast, orderByChild, query, ref, startAt } from "firebase/database";
+import { endAt, get, limitToLast, onValue, orderByChild, query, ref, startAt, type DataSnapshot } from "firebase/database";
 import { rtdb } from "@/lib/firebase";
 import { preferredTelemetry, type Telemetry } from "@/lib/telemetry";
 import type { HistoryCursor, HistoryRange } from "@/lib/history-pagination";
 
 export type HistoryPoint = Telemetry & HistoryCursor;
 
-function historyPoints(snapshot: Awaited<ReturnType<typeof get>>, cursor?: HistoryCursor) {
+function historyPoints(snapshot: DataSnapshot, cursor?: HistoryCursor) {
   const page: HistoryPoint[] = [];
 
   snapshot.forEach((child) => {
@@ -14,6 +14,19 @@ function historyPoints(snapshot: Awaited<ReturnType<typeof get>>, cursor?: Histo
   });
 
   return page.filter((item) => item.key !== cursor?.key).sort((a, b) => a.timestamp - b.timestamp || a.key.localeCompare(b.key));
+}
+
+export function watchRecentHistory(
+  deviceId: string,
+  onHistory: (history: HistoryPoint[]) => void,
+  onError: (error: Error) => void,
+  pageSize = 100,
+) {
+  return onValue(
+    query(ref(rtdb, `biogasData/${deviceId}/logs`), orderByChild("timestamp"), limitToLast(pageSize)),
+    (snapshot) => onHistory(historyPoints(snapshot)),
+    onError,
+  );
 }
 
 export async function getHistoryRange(deviceId: string, range: HistoryRange) {

@@ -5,6 +5,10 @@ export function hasHistoryRange(range: HistoryRange) {
   return range.from !== undefined || range.to !== undefined;
 }
 
+export function historyMode(range: HistoryRange) {
+  return hasHistoryRange(range) ? "range" : "live";
+}
+
 export function toHistoryRange(fromDate: string, toDate: string): HistoryRange | null {
   const from = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : undefined;
   const to = toDate ? new Date(`${toDate}T23:59:59.999`).getTime() : undefined;

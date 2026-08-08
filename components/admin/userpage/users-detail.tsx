@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
 
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { watchDeviceTelemetry } from "@/lib/device-telemetry";
-import { getHistoryPage, getHistoryRange, type HistoryPoint } from "@/lib/device-history";
-import { hasHistoryRange, mergeHistoryPage, toHistoryRange, type HistoryCursor, type HistoryRange } from "@/lib/history-pagination";
+import { getHistoryPage, getHistoryRange, watchRecentHistory, type HistoryPoint } from "@/lib/device-history";
+import { hasHistoryRange, historyMode, mergeHistoryPage, toHistoryRange, type HistoryCursor, type HistoryRange } from "@/lib/history-pagination";
 
 import Link from "next/link";
 
@@ -164,6 +164,7 @@ export default function UserDetail({
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [historyRange, setHistoryRange] = useState<HistoryRange>({});
+  const expandedHistory = useRef(false);
 
   const [loading, setLoading] =
     useState(true);
@@ -226,20 +227,36 @@ export default function UserDetail({
     setHasOlderHistory(false);
     setHistoryError(null);
 
-    const rangeApplied = hasHistoryRange(historyRange);
-    const historyRequest = rangeApplied
-      ? getHistoryRange(deviceId, historyRange)
-      : getHistoryPage(deviceId, undefined, HISTORY_PAGE_SIZE);
-
-    historyRequest.then((page) => {
+    const mode = historyMode(historyRange);
+    expandedHistory.current = false;
+    const format = (page: HistoryPoint[]) => page.map((point) => ({ ...point, energy: point.energy || calculateEnergyKwh(point.flowrate) }));
+    const receiveLiveHistory = (page: HistoryPoint[]) => {
       if (cancelled) return;
-      const formatted = page.map((point, index) => ({ ...point, energy: point.energy || calculateEnergyKwh(point.flowrate), index: index + 1 }));
-      setHistory(formatted);
-      setHistoryCursor(page[0] ?? null);
-      setHasOlderHistory(!rangeApplied && page.length === HISTORY_PAGE_SIZE);
-    }).catch((error: unknown) => {
-      if (!cancelled) setHistoryError(error instanceof Error ? error.message : "Gagal memuat histori.");
-    }).finally(() => !cancelled && setLoadingHistory(false));
+      const formatted = format(page);
+      setHistory((current) => (expandedHistory.current ? mergeHistoryPage(current, formatted) : formatted).map((point, index) => ({ ...point, index: index + 1 })));
+      setHistoryCursor((current) => expandedHistory.current ? current ?? page[0] ?? null : page[0] ?? null);
+      setHasOlderHistory(page.length === HISTORY_PAGE_SIZE);
+      setLoadingHistory(false);
+    };
+    const stopHistory = mode === "live"
+      ? watchRecentHistory(deviceId, receiveLiveHistory, (error) => {
+          if (!cancelled) {
+            setHistoryError(error.message);
+            setLoadingHistory(false);
+          }
+        }, HISTORY_PAGE_SIZE)
+      : undefined;
+
+    if (mode === "range") {
+      getHistoryRange(deviceId, historyRange).then((page) => {
+        if (cancelled) return;
+        setHistory(format(page).map((point, index) => ({ ...point, index: index + 1 })));
+        setHistoryCursor(page[0] ?? null);
+        setHasOlderHistory(false);
+      }).catch((error: unknown) => {
+        if (!cancelled) setHistoryError(error instanceof Error ? error.message : "Gagal memuat histori.");
+      }).finally(() => !cancelled && setLoadingHistory(false));
+    }
 
     const stopTelemetry = watchDeviceTelemetry(deviceId, (value) => {
       setRealtime(value ? { ...value, energy: value.energy || calculateEnergyKwh(value.flowrate) } : null);
@@ -247,6 +264,7 @@ export default function UserDetail({
 
     return () => {
       cancelled = true;
+      stopHistory?.();
       stopTelemetry();
     };
   }, [deviceId, historyRange]);
@@ -257,6 +275,7 @@ export default function UserDetail({
     try {
       const page = await getHistoryPage(deviceId, historyCursor, HISTORY_PAGE_SIZE, historyRange);
       const formatted = page.map((point) => ({ ...point, energy: point.energy || calculateEnergyKwh(point.flowrate) }));
+      expandedHistory.current = true;
       setHistory((current) => mergeHistoryPage(current, formatted).map((point, index) => ({ ...point, index: index + 1 })));
       setHistoryCursor(page[0] ?? historyCursor);
       setHasOlderHistory(page.length === HISTORY_PAGE_SIZE);
