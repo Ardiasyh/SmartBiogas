@@ -5,8 +5,8 @@ import { db } from "@/lib/firebase";
 
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { watchDeviceTelemetry } from "@/lib/device-telemetry";
-import { getHistoryPage, type HistoryPoint } from "@/lib/device-history";
-import { mergeHistoryPage, type HistoryCursor } from "@/lib/history-pagination";
+import { getHistoryPage, getHistoryRange, type HistoryPoint } from "@/lib/device-history";
+import { hasHistoryRange, mergeHistoryPage, toHistoryRange, type HistoryCursor, type HistoryRange } from "@/lib/history-pagination";
 
 import Link from "next/link";
 
@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import ExportExcelButton from "@/components/export/ExportExcelButton";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 import {
   ResponsiveContainer,
@@ -160,6 +161,10 @@ export default function UserDetail({
   const [historyError, setHistoryError] =
     useState<string | null>(null);
 
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [historyRange, setHistoryRange] = useState<HistoryRange>({});
+
   const [loading, setLoading] =
     useState(true);
 
@@ -221,12 +226,17 @@ export default function UserDetail({
     setHasOlderHistory(false);
     setHistoryError(null);
 
-    getHistoryPage(deviceId, undefined, HISTORY_PAGE_SIZE).then((page) => {
+    const rangeApplied = hasHistoryRange(historyRange);
+    const historyRequest = rangeApplied
+      ? getHistoryRange(deviceId, historyRange)
+      : getHistoryPage(deviceId, undefined, HISTORY_PAGE_SIZE);
+
+    historyRequest.then((page) => {
       if (cancelled) return;
       const formatted = page.map((point, index) => ({ ...point, energy: point.energy || calculateEnergyKwh(point.flowrate), index: index + 1 }));
       setHistory(formatted);
       setHistoryCursor(page[0] ?? null);
-      setHasOlderHistory(page.length === HISTORY_PAGE_SIZE);
+      setHasOlderHistory(!rangeApplied && page.length === HISTORY_PAGE_SIZE);
     }).catch((error: unknown) => {
       if (!cancelled) setHistoryError(error instanceof Error ? error.message : "Gagal memuat histori.");
     }).finally(() => !cancelled && setLoadingHistory(false));
@@ -239,13 +249,13 @@ export default function UserDetail({
       cancelled = true;
       stopTelemetry();
     };
-  }, [deviceId]);
+  }, [deviceId, historyRange]);
 
   const loadOlderHistory = async () => {
     if (!historyCursor || loadingHistory) return;
     setLoadingHistory(true);
     try {
-      const page = await getHistoryPage(deviceId, historyCursor, HISTORY_PAGE_SIZE);
+      const page = await getHistoryPage(deviceId, historyCursor, HISTORY_PAGE_SIZE, historyRange);
       const formatted = page.map((point) => ({ ...point, energy: point.energy || calculateEnergyKwh(point.flowrate) }));
       setHistory((current) => mergeHistoryPage(current, formatted).map((point, index) => ({ ...point, index: index + 1 })));
       setHistoryCursor(page[0] ?? historyCursor);
@@ -255,6 +265,17 @@ export default function UserDetail({
     } finally {
       setLoadingHistory(false);
     }
+  };
+
+  const applyDateRange = (from: string, to: string) => {
+    const range = toHistoryRange(from, to);
+    if (!range) {
+      setHistoryError("Tanggal mulai harus sebelum tanggal selesai.");
+      return;
+    }
+    setFromDate(from);
+    setToDate(to);
+    setHistoryRange(range);
   };
 
   /* ================= CHART DATA ================= */
@@ -317,13 +338,17 @@ export default function UserDetail({
           deviceId={deviceId}
         />
 
-        <Button
-          variant="outline"
-          disabled={!hasOlderHistory || loadingHistory}
-          onClick={loadOlderHistory}
-        >
-          {loadingHistory ? "Memuat..." : hasOlderHistory ? "Muat data lebih lama" : "Semua histori dimuat"}
-        </Button>
+        <DateRangePicker from={fromDate} to={toDate} onApply={applyDateRange} />
+
+        {!hasHistoryRange(historyRange) && (
+          <Button
+            variant="outline"
+            disabled={!hasOlderHistory || loadingHistory}
+            onClick={loadOlderHistory}
+          >
+            {loadingHistory ? "Memuat..." : hasOlderHistory ? "Muat data lebih lama" : "Semua histori dimuat"}
+          </Button>
+        )}
 
       </div>
 
