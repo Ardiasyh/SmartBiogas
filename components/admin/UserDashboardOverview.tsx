@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { watchDeviceTelemetry } from "@/lib/device-telemetry";
+import { watchRecentHistory, type HistoryPoint } from "@/lib/device-history";
 import type { Telemetry } from "@/lib/telemetry";
 
 import {
@@ -28,6 +29,7 @@ import {
 /* ================= KONSTANTA ================= */
 
 const OFFLINE_THRESHOLD = 15000;
+const HISTORY_LIMIT_PER_DEVICE = 20;
 
 type EnergyUnit = "kwh" | "mj";
 
@@ -37,7 +39,11 @@ type RawLog = {
 };
 
 function formatTime(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString();
+  return new Date(timestamp).toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 function convertEnergy(value: number, unit: EnergyUnit) {
@@ -54,54 +60,125 @@ export default function AdminDashboardOverview() {
   const [energyUnit, setEnergyUnit] = useState<EnergyUnit>("kwh");
 
   const chartData = useMemo(
-    () => rawLogs.map((log) => ({
-      time: formatTime(log.timestamp),
-      energy: convertEnergy(log.energy, energyUnit),
-    })),
+    () =>
+      rawLogs.map((log) => ({
+        time: formatTime(log.timestamp),
+        energy: convertEnergy(log.energy, energyUnit),
+      })),
     [rawLogs, energyUnit],
   );
 
   useEffect(() => {
     const telemetry = new Map<string, Telemetry | null>();
-    const stops = new Map<string, () => void>();
+    const histories = new Map<string, HistoryPoint[]>();
 
-    const refresh = () => {
-      const values = [...telemetry.values()].filter((value): value is Telemetry => value !== null);
+    const telemetryStops = new Map<string, () => void>();
+    const historyStops = new Map<string, () => void>();
+
+    const refreshRealtime = () => {
+      const values = [...telemetry.values()].filter(
+        (value): value is Telemetry => value !== null,
+      );
+
       const now = Date.now();
-      setTotalEnergy(values.reduce((total, value) => total + value.energy, 0));
-      setOnlineDevices(values.filter((value) => now - value.timestamp <= OFFLINE_THRESHOLD).length);
-      setOfflineDevices(Math.max(0, stops.size - values.filter((value) => now - value.timestamp <= OFFLINE_THRESHOLD).length));
-      setRawLogs(values.map(({ timestamp, energy }) => ({ timestamp, energy })).sort((a, b) => a.timestamp - b.timestamp).slice(-20));
+      const online = values.filter(
+        (value) => now - value.timestamp <= OFFLINE_THRESHOLD,
+      ).length;
+
+      setTotalEnergy(
+        values.reduce((total, value) => total + Number(value.energy || 0), 0),
+      );
+      setOnlineDevices(online);
+      setOfflineDevices(Math.max(0, telemetryStops.size - online));
     };
 
-    const unsubscribe = onSnapshot(collection(db, "users"), (snap) => {
+    const refreshHistory = () => {
+      const merged = [...histories.values()]
+        .flat()
+        .map(({ timestamp, energy }) => ({
+          timestamp,
+          energy: Number(energy || 0),
+        }))
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .slice(-20);
+
+      setRawLogs(merged);
+    };
+
+    const unsubscribeUsers = onSnapshot(collection(db, "users"), (snap) => {
       const deviceIds = new Set(
-        snap.docs.map((document) => document.data().deviceId).filter((value): value is string => typeof value === "string" && value.length > 0),
+        snap.docs
+          .map((document) => document.data().deviceId)
+          .filter(
+            (value): value is string =>
+              typeof value === "string" && value.trim().length > 0,
+          ),
       );
+
       setActiveUsers(deviceIds.size);
 
-      stops.forEach((stop, deviceId) => {
+      telemetryStops.forEach((stop, deviceId) => {
         if (deviceIds.has(deviceId)) return;
+
         stop();
-        stops.delete(deviceId);
+        telemetryStops.delete(deviceId);
         telemetry.delete(deviceId);
       });
 
-      deviceIds.forEach((deviceId) => {
-        if (stops.has(deviceId)) return;
-        stops.set(deviceId, watchDeviceTelemetry(deviceId, (value) => {
-          telemetry.set(deviceId, value);
-          refresh();
-        }));
+      historyStops.forEach((stop, deviceId) => {
+        if (deviceIds.has(deviceId)) return;
+
+        stop();
+        historyStops.delete(deviceId);
+        histories.delete(deviceId);
       });
-      refresh();
+
+      deviceIds.forEach((deviceId) => {
+        if (!telemetryStops.has(deviceId)) {
+          telemetryStops.set(
+            deviceId,
+            watchDeviceTelemetry(deviceId, (value) => {
+              telemetry.set(deviceId, value);
+              refreshRealtime();
+            }),
+          );
+        }
+
+        if (!historyStops.has(deviceId)) {
+          historyStops.set(
+            deviceId,
+            watchRecentHistory(
+              deviceId,
+              (history) => {
+                histories.set(deviceId, history);
+                refreshHistory();
+              },
+              (error) => {
+                console.error(`[RTDB] Gagal membaca logs device ${deviceId}:`, error);
+                histories.set(deviceId, []);
+                refreshHistory();
+              },
+              HISTORY_LIMIT_PER_DEVICE,
+            ),
+          );
+        }
+      });
+
+      refreshRealtime();
+      refreshHistory();
     });
 
-    const interval = window.setInterval(refresh, 5_000);
+    const interval = window.setInterval(refreshRealtime, 5_000);
+
     return () => {
-      unsubscribe();
+      unsubscribeUsers();
       window.clearInterval(interval);
-      stops.forEach((stop) => stop());
+      telemetryStops.forEach((stop) => stop());
+      historyStops.forEach((stop) => stop());
+      telemetryStops.clear();
+      historyStops.clear();
+      telemetry.clear();
+      histories.clear();
     };
   }, []);
 
@@ -114,10 +191,8 @@ export default function AdminDashboardOverview() {
 
   return (
     <div className="space-y-8">
-
       {/* ===== METRIC CARDS ===== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-
         <MetricCard
           title="Total Energi Sistem"
           value={displayEnergy.toFixed(3)}
@@ -157,10 +232,8 @@ export default function AdminDashboardOverview() {
               <XAxis dataKey="time" />
               <YAxis />
               <Tooltip
-                formatter={(value: number) => [
-                  `${value.toFixed(3)} ${
-                    energyUnit === "kwh" ? "kWh" : "MJ"
-                  }`,
+                formatter={(value) => [
+                  `${Number(value).toFixed(3)} ${energyUnit === "kwh" ? "kWh" : "MJ"}`,
                   "Energi",
                 ]}
               />
@@ -216,8 +289,8 @@ function MetricCard({
     highlight === "green"
       ? "text-green-600"
       : highlight === "red"
-      ? "text-red-600"
-      : "text-foreground";
+        ? "text-red-600"
+        : "text-foreground";
 
   return (
     <Card>
