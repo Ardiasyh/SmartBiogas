@@ -1,35 +1,35 @@
-import { limitToLast, onValue, query, ref } from "firebase/database";
+import { onValue, ref } from "firebase/database";
 import { rtdb } from "@/lib/firebase";
 import { preferredTelemetry, type Telemetry } from "@/lib/telemetry";
 
-export function watchDeviceTelemetry(deviceId: string, onTelemetry: (value: Telemetry | null) => void) {
-  let stopLegacy: (() => void) | undefined;
+/**
+ * Mendengarkan data sensor terbaru dari node realtime.
+ *
+ * Struktur RTDB yang dipakai:
+ * biogasData/{deviceId}/realtime
+ *
+ * History sengaja tidak dipakai sebagai fallback di sini karena
+ * biogasData/{deviceId}/logs adalah node terpisah untuk histori.
+ */
+export function watchDeviceTelemetry(
+  deviceId: string,
+  onTelemetry: (value: Telemetry | null) => void,
+) {
+  const realtimeRef = ref(rtdb, `biogasData/${deviceId}/realtime`);
 
-  const startLegacy = () => {
-    if (stopLegacy) return;
-    stopLegacy = onValue(
-      query(ref(rtdb, `biogasData/${deviceId}/logs`), limitToLast(1)),
-      (snapshot) => {
-        let latest: unknown = null;
-        snapshot.forEach((child) => {
-          latest = child.val();
-        });
-        onTelemetry(preferredTelemetry(null, latest));
-      },
-    );
-  };
+  return onValue(
+    realtimeRef,
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onTelemetry(null);
+        return;
+      }
 
-  const stopRealtime = onValue(ref(rtdb, `biogasData/${deviceId}/realtime`), (snapshot) => {
-    const current = preferredTelemetry(snapshot.val(), null);
-    if (!current) return startLegacy();
-
-    stopLegacy?.();
-    stopLegacy = undefined;
-    onTelemetry(current);
-  });
-
-  return () => {
-    stopRealtime();
-    stopLegacy?.();
-  };
+      onTelemetry(preferredTelemetry(snapshot.val(), null));
+    },
+    (error) => {
+      console.error(`[RTDB] Gagal membaca realtime device ${deviceId}:`, error);
+      onTelemetry(null);
+    },
+  );
 }
