@@ -113,11 +113,11 @@ export default function UserPage() {
       {deviceId && (
         <section className="space-y-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-300">
               <BarChart3 className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
                 Analytics
               </p>
               <h2 className="text-xl font-bold tracking-tight">Riwayat performa perangkat</h2>
@@ -136,11 +136,11 @@ export default function UserPage() {
       <section className="overflow-hidden rounded-[2rem] border border-border/70 bg-card/75 shadow-[0_18px_60px_-38px_rgba(0,0,0,0.5)] backdrop-blur-xl">
         <div className="flex flex-col gap-3 border-b border-border/60 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-300">
               <MapPin className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">Installation</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">Installation</p>
               <h2 className="text-lg font-bold tracking-tight">Lokasi instalasi biogas</h2>
             </div>
           </div>
