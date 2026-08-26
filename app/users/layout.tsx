@@ -13,6 +13,7 @@ export default function UserLayout({
   children: React.ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   return (
     <UnitProvider>
@@ -22,8 +23,17 @@ export default function UserLayout({
           <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-cyan-400/5 blur-3xl" />
         </div>
 
-        <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:z-40 md:block md:w-72">
-          <Sidebar title="User Panel" menu={userMenu} />
+        <aside
+          className={`hidden transition-[width] duration-300 ease-out md:fixed md:inset-y-0 md:left-0 md:z-40 md:block ${
+            sidebarCollapsed ? "md:w-20" : "md:w-72"
+          }`}
+        >
+          <Sidebar
+            title="User Panel"
+            menu={userMenu}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
+          />
         </aside>
 
         {sidebarOpen && (
@@ -49,7 +59,11 @@ export default function UserLayout({
           </button>
         </aside>
 
-        <main className="relative z-10 min-h-screen md:ml-72">
+        <main
+          className={`relative z-10 min-h-screen transition-[margin] duration-300 ease-out ${
+            sidebarCollapsed ? "md:ml-20" : "md:ml-72"
+          }`}
+        >
           <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
             <button
               onClick={() => setSidebarOpen(true)}
