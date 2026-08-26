@@ -15,7 +15,7 @@ service cloud.firestore {
         && request.resource.data.role == resource.data.role
         && request.resource.data.status == resource.data.status
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'fullname', 'email', 'province', 'city', 'address', 'lat', 'lng', 'locationName'
+          'fullname', 'email'
         ]));
       allow delete: if admin();
     }
