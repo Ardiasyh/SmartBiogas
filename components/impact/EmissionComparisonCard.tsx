@@ -79,7 +79,7 @@ export default function EmissionComparisonCard({
             <Scale className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="leading-5">
               Perhitungan menggunakan LHV biogas 5,568 kWh/m³, NCV LPG {LPG_LHV_KWH_PER_KG.toFixed(3)} kWh/kg,
-              dan faktor emisi pembakaran LPG {LPG_CO2_KG_PER_KG.toFixed(3)} kg CO₂/kg LPG.
+              dan faktor emisi pembakaran LPG {LPG_CO2_KG_PER_KG.toFixed(3)} kg CO₂/kg LPG. Parameter LPG mengacu pada IPCC 2006 Volume 2, Tabel 1.2 dan 1.4.
             </p>
           </div>
           <Badge variant="outline" className="w-fit font-normal">Estimasi substitusi energi</Badge>
