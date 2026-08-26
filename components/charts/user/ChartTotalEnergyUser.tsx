@@ -7,8 +7,6 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -23,6 +21,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 
 interface EnergyData {
   timestamp: number;
@@ -32,6 +36,13 @@ interface EnergyData {
 interface Props {
   deviceId: string;
 }
+
+const chartConfig = {
+  energy: {
+    label: "Energi",
+    color: "var(--chart-4)",
+  },
+} satisfies ChartConfig;
 
 const formatTime = (value: number) =>
   new Date(value).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
@@ -126,75 +137,71 @@ export default function ChartEnergyUser({ deviceId }: Props) {
       </CardHeader>
 
       <CardContent className="p-0">
-        <div className="grid grid-cols-3 border-b bg-background/40">
+        <div className="grid grid-cols-3 border-b bg-muted/10">
           <Stat label="Rata-rata" value={`${stats.average.toFixed(3)} kWh`} />
           <Stat label="Puncak" value={`${stats.peak.toFixed(3)} kWh`} />
           <Stat label="Total sampel" value={`${stats.total.toFixed(3)} kWh`} />
         </div>
 
-        <div className="h-[330px] px-2 pb-4 pt-5 sm:px-4">
-          {loading ? (
+        {loading ? (
+          <div className="h-[330px] p-4">
             <ChartLoading />
-          ) : data.length === 0 ? (
+          </div>
+        ) : data.length === 0 ? (
+          <div className="h-[330px]">
             <ChartEmpty />
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="energyAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--chart-4)" stopOpacity={0.30} />
-                    <stop offset="85%" stopColor="var(--chart-4)" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
+          </div>
+        ) : (
+          <ChartContainer config={chartConfig} className="h-[330px] w-full aspect-auto px-2 pb-4 pt-5 sm:px-4">
+            <AreaChart accessibilityLayer data={data} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+              <defs>
+                <linearGradient id="userEnergyFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--color-energy)" stopOpacity={0.30} />
+                  <stop offset="95%" stopColor="var(--color-energy)" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
 
-                <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 5" />
-                <XAxis
-                  dataKey="timestamp"
-                  tickFormatter={formatTime}
-                  tickLine={false}
-                  axisLine={false}
-                  fontSize={11}
-                  minTickGap={28}
-                  tickMargin={10}
-                  stroke="var(--muted-foreground)"
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  fontSize={11}
-                  width={58}
-                  tickMargin={8}
-                  stroke="var(--muted-foreground)"
-                  tickFormatter={(value) => Number(value).toFixed(2)}
-                />
-                <Tooltip
-                  cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }}
-                  contentStyle={{
-                    borderRadius: 10,
-                    border: "1px solid var(--border)",
-                    background: "var(--popover)",
-                    color: "var(--popover-foreground)",
-                    boxShadow: "0 10px 30px -12px rgba(0,0,0,.35)",
-                  }}
-                  formatter={(value) => [`${Number(value).toFixed(3)} kWh`, "Energi"]}
-                  labelFormatter={(value) => new Date(Number(value)).toLocaleString("id-ID")}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="energy"
-                  stroke="var(--chart-4)"
-                  fill="url(#energyAreaGradient)"
-                  strokeWidth={2.5}
-                  dot={false}
-                  activeDot={{ r: 4, strokeWidth: 2, fill: "var(--background)" }}
-                  isAnimationActive
-                  animationDuration={900}
-                  animationEasing="ease-out"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+              <CartesianGrid vertical={false} strokeDasharray="3 5" />
+              <XAxis
+                dataKey="timestamp"
+                tickFormatter={formatTime}
+                tickLine={false}
+                axisLine={false}
+                minTickGap={28}
+                tickMargin={10}
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                width={58}
+                tickMargin={8}
+                tickFormatter={(value) => Number(value).toFixed(2)}
+              />
+              <ChartTooltip
+                cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }}
+                content={
+                  <ChartTooltipContent
+                    indicator="line"
+                    labelFormatter={(label) => new Date(Number(label)).toLocaleString("id-ID")}
+                    valueFormatter={(value) => `${Number(value).toFixed(3)} kWh`}
+                  />
+                }
+              />
+              <Area
+                type="monotone"
+                dataKey="energy"
+                stroke="var(--color-energy)"
+                fill="url(#userEnergyFill)"
+                strokeWidth={2.25}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 2, fill: "var(--background)" }}
+                isAnimationActive
+                animationDuration={900}
+                animationEasing="ease-out"
+              />
+            </AreaChart>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );
