@@ -11,6 +11,7 @@ import { watchDeviceTelemetry } from "@/lib/device-telemetry"
 import UserEditableMap from "@/components/user/UserEditableMap"
 import UserHeader from "@/components/user/UserHeader"
 import UserBiogasCard from "@/components/user/UserBiogasCard"
+import EmissionComparisonCard from "@/components/impact/EmissionComparisonCard"
 import ChartTotalEnergyUser from "@/components/charts/user/ChartTotalEnergyUser"
 import ChartFlowrateUser from "@/components/charts/user/ChartFlowrateUse"
 import ChartPressureUser from "@/components/charts/user/ChartPressureUser"
@@ -116,6 +117,13 @@ export default function UserPage() {
         onChangeFlowUnit={setFlowUnit}
         onChangePressureUnit={setPressureUnit}
         onChangeEnergyUnit={setEnergyUnit}
+      />
+
+      <EmissionComparisonCard
+        flowRateM3h={status === "online" ? flowRate : 0}
+        title="Dampak substitusi LPG"
+        description="Perbandingan realtime antara energi biogas perangkat Anda dengan LPG yang memiliki energi setara. Nilai CO₂ menunjukkan potensi emisi fosil dari pembakaran LPG yang dapat dihindari."
+        scopeLabel={status === "online" ? "Perangkat online" : "Perangkat offline"}
       />
 
       {deviceId && (
