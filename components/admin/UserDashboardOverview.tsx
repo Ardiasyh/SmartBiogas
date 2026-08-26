@@ -19,8 +19,6 @@ import {
   Cell,
   Pie,
   PieChart,
-  ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -38,6 +36,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 
 const OFFLINE_THRESHOLD = 15_000;
 const HISTORY_LIMIT_PER_DEVICE = 20;
@@ -48,6 +52,24 @@ type RawLog = {
   timestamp: number;
   energy: number;
 };
+
+const energyChartConfig = {
+  energy: {
+    label: "Energi",
+    color: "var(--chart-4)",
+  },
+} satisfies ChartConfig;
+
+const deviceChartConfig = {
+  online: {
+    label: "Online",
+    color: "var(--chart-2)",
+  },
+  offline: {
+    label: "Offline",
+    color: "var(--chart-5)",
+  },
+} satisfies ChartConfig;
 
 function formatTime(timestamp: number) {
   return new Date(timestamp).toLocaleTimeString("id-ID", {
@@ -198,8 +220,8 @@ export default function AdminDashboardOverview() {
   const onlinePercent = totalDevices > 0 ? Math.round((onlineDevices / totalDevices) * 100) : 0;
 
   const pieData = [
-    { name: "Online", value: onlineDevices },
-    { name: "Offline", value: offlineDevices },
+    { status: "online", value: onlineDevices },
+    { status: "offline", value: offlineDevices },
   ];
 
   return (
@@ -298,58 +320,49 @@ export default function AdminDashboardOverview() {
             </div>
           </CardHeader>
 
-          <CardContent className="h-[350px] px-2 pb-4 pt-5 sm:px-4">
+          <CardContent className="p-0">
             {chartData.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Belum ada histori energi.</div>
+              <div className="flex h-[350px] items-center justify-center text-sm text-muted-foreground">Belum ada histori energi.</div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+              <ChartContainer config={energyChartConfig} className="h-[350px] w-full aspect-auto px-2 pb-4 pt-5 sm:px-4">
+                <AreaChart accessibilityLayer data={chartData} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="adminEnergyGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--chart-4)" stopOpacity={0.30} />
-                      <stop offset="88%" stopColor="var(--chart-4)" stopOpacity={0.02} />
+                    <linearGradient id="adminEnergyFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-energy)" stopOpacity={0.30} />
+                      <stop offset="95%" stopColor="var(--color-energy)" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
 
-                  <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 5" />
+                  <CartesianGrid vertical={false} strokeDasharray="3 5" />
                   <XAxis
                     dataKey="time"
                     tickLine={false}
                     axisLine={false}
-                    fontSize={11}
                     minTickGap={28}
                     tickMargin={10}
-                    stroke="var(--muted-foreground)"
                   />
                   <YAxis
                     tickLine={false}
                     axisLine={false}
-                    fontSize={11}
                     width={58}
                     tickMargin={8}
-                    stroke="var(--muted-foreground)"
                     tickFormatter={(value) => Number(value).toFixed(2)}
                   />
-                  <Tooltip
+                  <ChartTooltip
                     cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }}
-                    contentStyle={{
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "var(--popover)",
-                      color: "var(--popover-foreground)",
-                      boxShadow: "0 10px 30px -12px rgba(0,0,0,.35)",
-                    }}
-                    formatter={(value) => [
-                      `${Number(value).toFixed(3)} ${energyUnit === "kwh" ? "kWh" : "MJ"}`,
-                      "Energi",
-                    ]}
+                    content={
+                      <ChartTooltipContent
+                        indicator="line"
+                        valueFormatter={(value) => `${Number(value).toFixed(3)} ${energyUnit === "kwh" ? "kWh" : "MJ"}`}
+                      />
+                    }
                   />
                   <Area
                     type="monotone"
                     dataKey="energy"
-                    stroke="var(--chart-4)"
-                    fill="url(#adminEnergyGradient)"
-                    strokeWidth={2.5}
+                    stroke="var(--color-energy)"
+                    fill="url(#adminEnergyFill)"
+                    strokeWidth={2.25}
                     dot={false}
                     activeDot={{ r: 4, strokeWidth: 2, fill: "var(--background)" }}
                     isAnimationActive
@@ -357,7 +370,7 @@ export default function AdminDashboardOverview() {
                     animationEasing="ease-out"
                   />
                 </AreaChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             )}
           </CardContent>
         </Card>
@@ -370,12 +383,12 @@ export default function AdminDashboardOverview() {
 
           <CardContent className="flex min-h-[350px] flex-col items-center justify-center gap-4 p-5">
             <div className="relative h-[220px] w-full max-w-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
+              <ChartContainer config={deviceChartConfig} className="h-[220px] w-full aspect-auto">
+                <PieChart accessibilityLayer>
                   <Pie
                     data={pieData}
                     dataKey="value"
-                    nameKey="name"
+                    nameKey="status"
                     innerRadius={66}
                     outerRadius={90}
                     paddingAngle={4}
@@ -384,20 +397,15 @@ export default function AdminDashboardOverview() {
                     isAnimationActive
                     animationDuration={800}
                   >
-                    <Cell fill="var(--chart-2)" />
-                    <Cell fill="var(--chart-5)" />
+                    <Cell fill="var(--color-online)" />
+                    <Cell fill="var(--color-offline)" />
                   </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "var(--popover)",
-                      color: "var(--popover-foreground)",
-                      boxShadow: "0 10px 30px -12px rgba(0,0,0,.35)",
-                    }}
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent hideLabel nameKey="status" />}
                   />
                 </PieChart>
-              </ResponsiveContainer>
+              </ChartContainer>
 
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
