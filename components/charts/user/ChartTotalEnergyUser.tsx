@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ref, query, orderByChild, limitToLast, onValue } from "firebase/database";
-import { Zap } from "lucide-react";
+import { Activity, Zap } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -15,6 +15,14 @@ import {
 
 import { rtdb } from "@/lib/firebase";
 import { calculateEnergyKwh } from "@/lib/biogas";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 interface EnergyData {
   timestamp: number;
@@ -24,6 +32,9 @@ interface EnergyData {
 interface Props {
   deviceId: string;
 }
+
+const formatTime = (value: number) =>
+  new Date(value).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 
 export default function ChartEnergyUser({ deviceId }: Props) {
   const [data, setData] = useState<EnergyData[]>([]);
@@ -78,123 +89,131 @@ export default function ChartEnergyUser({ deviceId }: Props) {
     );
   }, [deviceId]);
 
-  const totalEnergy = useMemo(
-    () => data.reduce((sum, point) => sum + point.energy, 0),
-    [data],
-  );
-
-  const latestEnergy = useMemo(() => data.at(-1)?.energy ?? 0, [data]);
+  const stats = useMemo(() => {
+    const latest = data.at(-1)?.energy ?? 0;
+    const total = data.reduce((sum, point) => sum + point.energy, 0);
+    const average = data.length ? total / data.length : 0;
+    const peak = data.length ? Math.max(...data.map((point) => point.energy)) : 0;
+    return { latest, total, average, peak };
+  }, [data]);
 
   return (
-    <div className="overflow-hidden rounded-[2rem] border border-border/70 bg-card/75 shadow-[0_20px_60px_-42px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-      <div className="flex flex-col gap-4 border-b border-border/60 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-300">
-            <Zap className="h-5 w-5" />
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b bg-muted/20 pb-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background text-violet-600 dark:text-violet-300">
+              <Zap className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-base">Energi biogas</CardTitle>
+                <Badge variant="secondary" className="gap-1 font-normal">
+                  <Activity className="h-3 w-3" /> Live history
+                </Badge>
+              </div>
+              <CardDescription className="mt-1">20 sampel histori energi terbaru</CardDescription>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-300">Energy analytics</p>
-            <h3 className="mt-1 text-lg font-bold tracking-tight">Energi Biogas</h3>
-            <p className="text-xs text-muted-foreground">20 data history terbaru</p>
+
+          <div className="text-left sm:text-right">
+            <p className="text-xs text-muted-foreground">Nilai terbaru</p>
+            <p className="text-2xl font-semibold tracking-tight tabular-nums">
+              {stats.latest.toFixed(3)} <span className="text-sm font-normal text-muted-foreground">kWh</span>
+            </p>
           </div>
         </div>
+      </CardHeader>
 
-        <div className="flex gap-3">
-          <MiniStat label="Latest" value={`${latestEnergy.toFixed(3)} kWh`} />
-          <MiniStat label="Total" value={`${totalEnergy.toFixed(3)} kWh`} emphasis />
+      <CardContent className="p-0">
+        <div className="grid grid-cols-3 border-b bg-background/40">
+          <Stat label="Rata-rata" value={`${stats.average.toFixed(3)} kWh`} />
+          <Stat label="Puncak" value={`${stats.peak.toFixed(3)} kWh`} />
+          <Stat label="Total sampel" value={`${stats.total.toFixed(3)} kWh`} />
         </div>
-      </div>
 
-      <div className="h-[330px] p-3 pb-5 pt-6 sm:px-5">
-        {loading ? (
-          <ChartLoading />
-        ) : data.length === 0 ? (
-          <ChartEmpty />
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-              <defs>
-                <linearGradient id="energyAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.46} />
-                  <stop offset="60%" stopColor="#6366f1" stopOpacity={0.18} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+        <div className="h-[330px] px-2 pb-4 pt-5 sm:px-4">
+          {loading ? (
+            <ChartLoading />
+          ) : data.length === 0 ? (
+            <ChartEmpty />
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="energyAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--chart-4)" stopOpacity={0.30} />
+                    <stop offset="85%" stopColor="var(--chart-4)" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
 
-              <CartesianGrid strokeDasharray="4 4" vertical={false} opacity={0.08} />
-              <XAxis
-                dataKey="timestamp"
-                tickFormatter={(value) => new Date(value).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
-                tickLine={false}
-                axisLine={false}
-                fontSize={11}
-                minTickGap={24}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                fontSize={11}
-                width={58}
-                tickFormatter={(value) => Number(value).toFixed(2)}
-              />
-              <Tooltip
-                cursor={{ strokeDasharray: "4 4", strokeOpacity: 0.25 }}
-                contentStyle={{
-                  borderRadius: 16,
-                  border: "1px solid rgba(148,163,184,.2)",
-                  background: "rgba(30,27,75,.94)",
-                  color: "white",
-                }}
-                formatter={(value) => [`${Number(value).toFixed(3)} kWh`, "Energi"]}
-                labelFormatter={(value) => new Date(Number(value)).toLocaleString("id-ID")}
-              />
-              <Area
-                type="monotone"
-                dataKey="energy"
-                stroke="#8b5cf6"
-                fill="url(#energyAreaGradient)"
-                strokeWidth={3}
-                dot={false}
-                activeDot={{ r: 5, strokeWidth: 2 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-    </div>
+                <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 5" />
+                <XAxis
+                  dataKey="timestamp"
+                  tickFormatter={formatTime}
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={11}
+                  minTickGap={28}
+                  tickMargin={10}
+                  stroke="var(--muted-foreground)"
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={11}
+                  width={58}
+                  tickMargin={8}
+                  stroke="var(--muted-foreground)"
+                  tickFormatter={(value) => Number(value).toFixed(2)}
+                />
+                <Tooltip
+                  cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }}
+                  contentStyle={{
+                    borderRadius: 10,
+                    border: "1px solid var(--border)",
+                    background: "var(--popover)",
+                    color: "var(--popover-foreground)",
+                    boxShadow: "0 10px 30px -12px rgba(0,0,0,.35)",
+                  }}
+                  formatter={(value) => [`${Number(value).toFixed(3)} kWh`, "Energi"]}
+                  labelFormatter={(value) => new Date(Number(value)).toLocaleString("id-ID")}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="energy"
+                  stroke="var(--chart-4)"
+                  fill="url(#energyAreaGradient)"
+                  strokeWidth={2.5}
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 2, fill: "var(--background)" }}
+                  isAnimationActive
+                  animationDuration={900}
+                  animationEasing="ease-out"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
-function MiniStat({
-  label,
-  value,
-  emphasis = false,
-}: {
-  label: string;
-  value: string;
-  emphasis?: boolean;
-}) {
+function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      className={`rounded-2xl border px-3 py-2 text-right ${
-        emphasis
-          ? "border-violet-500/20 bg-violet-500/10"
-          : "border-border/70 bg-background/55"
-      }`}
-    >
-      <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <p className={`mt-0.5 text-sm font-black ${emphasis ? "text-violet-600 dark:text-violet-300" : ""}`}>
-        {value}
-      </p>
+    <div className="px-4 py-3 text-center sm:text-left">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-sm font-medium tabular-nums">{value}</p>
     </div>
   );
 }
 
 function ChartLoading() {
   return (
-    <div className="flex h-full items-end gap-2 px-3 pb-6">
+    <div className="flex h-full items-end gap-2 px-3 pb-8">
       {[30, 48, 40, 65, 52, 78, 60, 82, 68, 88].map((height, index) => (
-        <div key={index} className="flex-1 animate-pulse rounded-t-lg bg-muted" style={{ height: `${height}%` }} />
+        <div key={index} className="flex-1 animate-pulse rounded-sm bg-muted" style={{ height: `${height}%` }} />
       ))}
     </div>
   );
