@@ -109,6 +109,7 @@ function ChartTooltipContent({
   nameKey,
   label,
   labelFormatter,
+  valueFormatter,
 }: ChartTooltipContentProps) {
   const { config } = useChart()
 
@@ -167,7 +168,9 @@ function ChartTooltipContent({
                   {itemConfig?.label ?? item.name ?? key}
                 </span>
                 <span className="font-mono font-medium tabular-nums text-foreground">
-                  {formatTooltipValue(item.value)}
+                  {valueFormatter
+                    ? valueFormatter(item.value, item)
+                    : formatTooltipValue(item.value)}
                 </span>
               </div>
             </div>
