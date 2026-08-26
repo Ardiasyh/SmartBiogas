@@ -12,6 +12,7 @@ import UserEditableMap from "@/components/user/UserEditableMap"
 import UserHeader from "@/components/user/UserHeader"
 import UserBiogasCard from "@/components/user/UserBiogasCard"
 import EmissionComparisonCard from "@/components/impact/EmissionComparisonCard"
+import ExportExcelButton from "@/components/export/ExportExcelButton"
 import ChartTotalEnergyUser from "@/components/charts/user/ChartTotalEnergyUser"
 import ChartFlowrateUser from "@/components/charts/user/ChartFlowrateUse"
 import ChartPressureUser from "@/components/charts/user/ChartPressureUser"
@@ -129,7 +130,7 @@ export default function UserPage() {
       {deviceId && (
         <section className="space-y-4">
           <Card>
-            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="mb-2 flex items-center gap-2">
                   <CardTitle className="text-base">Riwayat performa perangkat</CardTitle>
@@ -142,8 +143,15 @@ export default function UserPage() {
                 </CardDescription>
               </div>
 
-              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                Device <span className="font-mono font-medium text-foreground">{deviceId}</span>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  Device <span className="font-mono font-medium text-foreground">{deviceId}</span>
+                </div>
+                <ExportExcelButton
+                  deviceId={deviceId}
+                  variant="outline"
+                  size="sm"
+                />
               </div>
             </CardHeader>
           </Card>
