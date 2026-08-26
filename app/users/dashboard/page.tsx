@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { onAuthStateChanged } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
-import { BarChart3, MapPin } from "lucide-react"
+import { BarChart3, LockKeyhole, MapPin } from "lucide-react"
 
 import { auth, db } from "@/lib/firebase"
 import { watchDeviceTelemetry } from "@/lib/device-telemetry"
@@ -17,26 +17,18 @@ import ChartTotalEnergyUser from "@/components/charts/user/ChartTotalEnergyUser"
 import ChartFlowrateUser from "@/components/charts/user/ChartFlowrateUse"
 import ChartPressureUser from "@/components/charts/user/ChartPressureUser"
 import { Badge } from "@/components/ui/badge"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 import { calculateEnergyKwh } from "@/lib/biogas"
 import type { FlowUnit, PressureUnit, EnergyUnit } from "@/lib/converters"
 
 export default function UserPage() {
   const [deviceId, setDeviceId] = useState<string>("")
-
   const [flowRate, setFlowRate] = useState<number>(0)
   const [pressure, setPressure] = useState<number>(0)
   const [temperature, setTemperature] = useState<number>(0)
   const [energy, setEnergy] = useState<number>(0)
   const [status, setStatus] = useState<string>("offline")
-
   const [flowUnit, setFlowUnit] = useState<FlowUnit>("m3h")
   const [pressureUnit, setPressureUnit] = useState<PressureUnit>("kpa")
   const [energyUnit, setEnergyUnit] = useState<EnergyUnit>("kwh")
@@ -44,7 +36,6 @@ export default function UserPage() {
   useEffect(() => {
     let stopTelemetry: (() => void) | null = null
     let intervalCheck: ReturnType<typeof setInterval> | null = null
-
     const OFFLINE_TIMEOUT = 60000
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
@@ -58,13 +49,11 @@ export default function UserPage() {
         const fetchedDeviceId = userSnap.data()?.deviceId
 
         if (!fetchedDeviceId) {
-          console.log("deviceId tidak ditemukan")
           setStatus("offline")
           return
         }
 
         setDeviceId(fetchedDeviceId)
-
         let lastTimestamp = 0
 
         stopTelemetry = watchDeviceTelemetry(fetchedDeviceId, (latest) => {
@@ -74,14 +63,10 @@ export default function UserPage() {
           }
 
           const rawFlow = latest.flowrate
-          const rawPressure = latest.pressure
-          const rawTemp = latest.temperature
-
           setFlowRate(rawFlow)
-          setPressure(rawPressure)
-          setTemperature(rawTemp)
+          setPressure(latest.pressure)
+          setTemperature(latest.temperature)
           setEnergy(latest.energy || calculateEnergyKwh(rawFlow))
-
           lastTimestamp = latest.timestamp
           setStatus(Date.now() - lastTimestamp <= OFFLINE_TIMEOUT ? "online" : "offline")
         })
@@ -138,20 +123,14 @@ export default function UserPage() {
                     <BarChart3 className="h-3 w-3" /> Analytics
                   </Badge>
                 </div>
-                <CardDescription>
-                  Pantau tren energi, flowrate, dan tekanan dari histori perangkat yang tersimpan.
-                </CardDescription>
+                <CardDescription>Pantau tren energi, flowrate, dan tekanan dari histori perangkat yang tersimpan.</CardDescription>
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                   Device <span className="font-mono font-medium text-foreground">{deviceId}</span>
                 </div>
-                <ExportExcelButton
-                  deviceId={deviceId}
-                  variant="outline"
-                  size="sm"
-                />
+                <ExportExcelButton deviceId={deviceId} variant="outline" size="sm" />
               </div>
             </CardHeader>
           </Card>
@@ -174,14 +153,12 @@ export default function UserPage() {
               </div>
               <div>
                 <CardTitle className="text-base">Lokasi instalasi biogas</CardTitle>
-                <CardDescription className="mt-1">
-                  Perbarui koordinat perangkat langsung dari peta.
-                </CardDescription>
+                <CardDescription className="mt-1">Lihat titik instalasi yang telah ditetapkan oleh administrator.</CardDescription>
               </div>
             </div>
 
-            <Badge variant="outline" className="w-fit font-normal">
-              Klik atau geser marker
+            <Badge variant="outline" className="w-fit gap-1.5 font-normal text-muted-foreground">
+              <LockKeyhole className="h-3 w-3" /> Dikelola admin
             </Badge>
           </div>
         </CardHeader>
