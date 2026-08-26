@@ -11,6 +11,7 @@ const ROWS_PER_SHEET = 100_000
 
 type Props = {
   deviceId: string
+  history?: unknown[]
   variant?: "default" | "outline" | "secondary" | "ghost"
   size?: "default" | "sm" | "lg" | "icon"
   className?: string
