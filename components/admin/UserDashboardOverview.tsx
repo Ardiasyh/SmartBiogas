@@ -29,6 +29,7 @@ import { db } from "@/lib/firebase";
 import { watchDeviceTelemetry } from "@/lib/device-telemetry";
 import { watchRecentHistory, type HistoryPoint } from "@/lib/device-history";
 import type { Telemetry } from "@/lib/telemetry";
+import EmissionComparisonCard from "@/components/impact/EmissionComparisonCard";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -61,6 +62,7 @@ function convertEnergy(value: number, unit: EnergyUnit) {
 
 export default function AdminDashboardOverview() {
   const [totalEnergy, setTotalEnergy] = useState(0);
+  const [totalFlowRate, setTotalFlowRate] = useState(0);
   const [activeUsers, setActiveUsers] = useState(0);
   const [onlineDevices, setOnlineDevices] = useState(0);
   const [offlineDevices, setOfflineDevices] = useState(0);
@@ -88,12 +90,16 @@ export default function AdminDashboardOverview() {
       );
 
       const now = Date.now();
-      const online = values.filter(
+      const onlineValues = values.filter(
         (value) => now - value.timestamp <= OFFLINE_THRESHOLD,
-      ).length;
+      );
+      const online = onlineValues.length;
 
       setTotalEnergy(
         values.reduce((total, value) => total + Number(value.energy || 0), 0),
+      );
+      setTotalFlowRate(
+        onlineValues.reduce((total, value) => total + Number(value.flowrate || 0), 0),
       );
       setOnlineDevices(online);
       setOfflineDevices(Math.max(0, telemetryStops.size - online));
@@ -272,6 +278,13 @@ export default function AdminDashboardOverview() {
           tone="rose"
         />
       </div>
+
+      <EmissionComparisonCard
+        flowRateM3h={totalFlowRate}
+        title="Dampak substitusi LPG seluruh sistem"
+        description="Estimasi realtime berdasarkan total flowrate dari perangkat yang sedang online. Nilai menunjukkan LPG dengan energi setara dan potensi emisi CO₂ fosil dari LPG yang dapat dihindari."
+        scopeLabel={`${onlineDevices} device online`}
+      />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.75fr)]">
         <Card className="overflow-hidden">
