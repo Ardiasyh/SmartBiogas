@@ -40,7 +40,11 @@ function MapClickHandler({ onPick }: { onPick: (lat: number, lng: number) => voi
   return null
 }
 
-export default function UserEditableMap() {
+export default function UserEditableMap({
+  onSaved,
+}: {
+  onSaved?: (lat: number, lng: number) => void
+}) {
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
   const [uid, setUid] = useState<string | null>(null)
@@ -102,6 +106,7 @@ export default function UserEditableMap() {
 
     try {
       await updateDoc(doc(db, "users", uid), { lat, lng })
+      onSaved?.(lat, lng)
       toast.success("Lokasi instalasi berhasil disimpan.")
     } catch (error) {
       console.error("Gagal menyimpan lokasi:", error)
