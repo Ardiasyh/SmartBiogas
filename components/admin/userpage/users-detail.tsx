@@ -1,118 +1,90 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { db } from "@/lib/firebase";
-
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
-import { watchDeviceTelemetry } from "@/lib/device-telemetry";
-import { getHistoryPage, getHistoryRange, watchRecentHistory, type HistoryPoint } from "@/lib/device-history";
-import { hasHistoryRange, historyMode, mergeHistoryPage, toHistoryRange, type HistoryCursor, type HistoryRange } from "@/lib/history-pagination";
-
+import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { Activity, ArrowLeft, Gauge, MapPin, Thermometer, Wind, Zap } from "lucide-react";
 
+import { db } from "@/lib/firebase";
+import { watchDeviceTelemetry } from "@/lib/device-telemetry";
+import {
+  getHistoryPage,
+  getHistoryRange,
+  watchRecentHistory,
+  type HistoryPoint,
+} from "@/lib/device-history";
+import {
+  hasHistoryRange,
+  historyMode,
+  mergeHistoryPage,
+  toHistoryRange,
+  type HistoryCursor,
+  type HistoryRange,
+} from "@/lib/history-pagination";
+import ExportExcelButton from "@/components/export/ExportExcelButton";
+import EnergyChart from "@/components/charts/admin/EnergyChart";
+import FlowrateChart from "@/components/charts/admin/FlowrateChart";
+import PressureChart from "@/components/charts/admin/PressureChart";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
-import { Button } from "@/components/ui/button";
-
-import ExportExcelButton from "@/components/export/ExportExcelButton";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts";
-
-import dynamic from "next/dynamic";
-
-const MapContainer = dynamic(
-  () =>
-    import("react-leaflet").then(
-      (m) => m.MapContainer
-    ),
-  { ssr: false }
-);
-
-const TileLayer = dynamic(
-  () =>
-    import("react-leaflet").then(
-      (m) => m.TileLayer
-    ),
-  { ssr: false }
-);
-
-const Marker = dynamic(
-  () =>
-    import("react-leaflet").then(
-      (m) => m.Marker
-    ),
-  { ssr: false }
-);
-
-const Popup = dynamic(
-  () =>
-    import("react-leaflet").then(
-      (m) => m.Popup
-    ),
-  { ssr: false }
-);
 
 import "leaflet/dist/leaflet.css";
 
-import FlowrateChart from "@/components/charts/admin/FlowrateChart";
-import PressureChart from "@/components/charts/admin/PressureChart";
-
-/* ================= KONSTANTA ================= */
+const MapContainer = dynamic(
+  () => import("react-leaflet").then((module) => module.MapContainer),
+  { ssr: false },
+);
+const TileLayer = dynamic(
+  () => import("react-leaflet").then((module) => module.TileLayer),
+  { ssr: false },
+);
+const Marker = dynamic(
+  () => import("react-leaflet").then((module) => module.Marker),
+  { ssr: false },
+);
+const Popup = dynamic(
+  () => import("react-leaflet").then((module) => module.Popup),
+  { ssr: false },
+);
 
 const F_CH4 = 0.56;
 const LHV_CH4 = 35.8;
 const MJ_TO_KWH = 1 / 3.6;
 const ETA_GEN = 0.08;
+const HISTORY_PAGE_SIZE = 100;
 
 function calculateEnergyKwh(flow: number) {
-  const V_CH4 = flow * F_CH4;
-  const LHV = LHV_CH4 * F_CH4 * MJ_TO_KWH;
-
-  return V_CH4 * LHV * ETA_GEN;
+  const methaneVolume = flow * F_CH4;
+  const lhv = LHV_CH4 * F_CH4 * MJ_TO_KWH;
+  return methaneVolume * lhv * ETA_GEN;
 }
-
-/* ================= UNIT ================= */
 
 type FlowUnit = "m3h" | "lmin";
 type EnergyUnit = "kwh" | "mj";
 type TempUnit = "c" | "f";
 type PressureUnit = "kpa" | "bar";
 
-const convertFlow = (
-  v: number,
-  u: FlowUnit
-) => (u === "lmin" ? (v * 1000) / 60 : v);
+const convertFlow = (value: number, unit: FlowUnit) =>
+  unit === "lmin" ? (value * 1000) / 60 : value;
+const convertEnergy = (value: number, unit: EnergyUnit) =>
+  unit === "mj" ? value * 3.6 : value;
+const convertTemp = (value: number, unit: TempUnit) =>
+  unit === "f" ? value * 1.8 + 32 : value;
+const convertPressure = (value: number, unit: PressureUnit) =>
+  unit === "bar" ? value / 100 : value;
 
-const convertEnergy = (
-  v: number,
-  u: EnergyUnit
-) => (u === "mj" ? v * 3.6 : v);
-
-const convertTemp = (
-  v: number,
-  u: TempUnit
-) => (u === "f" ? v * 1.8 + 32 : v);
-
-const convertPressure = (
-  v: number,
-  u: PressureUnit
-) => (u === "bar" ? v / 100 : v);
-
-/* ================= TYPES ================= */
+const flowUnitLabel = (unit: FlowUnit) => (unit === "lmin" ? "L/min" : "m³/h");
+const energyUnitLabel = (unit: EnergyUnit) => (unit === "mj" ? "MJ" : "kWh");
+const pressureUnitLabel = (unit: PressureUnit) => (unit === "bar" ? "bar" : "kPa");
 
 type UserData = {
   fullname: string;
@@ -127,97 +99,55 @@ type RealtimeData = {
   pressure: number;
   flowrate: number;
   energy: number;
-
   timestamp?: number;
-
   index?: number;
 };
 
-const HISTORY_PAGE_SIZE = 100;
-
-export default function UserDetail({
-  deviceId,
-}: {
-  deviceId: string;
-}) {
-  const [user, setUser] =
-    useState<UserData | null>(null);
-
-  const [realtime, setRealtime] =
-    useState<RealtimeData | null>(null);
-
-  const [history, setHistory] =
-    useState<(RealtimeData & HistoryPoint)[]>([]);
-
-  const [historyCursor, setHistoryCursor] =
-    useState<HistoryCursor | null>(null);
-
-  const [hasOlderHistory, setHasOlderHistory] =
-    useState(false);
-
-  const [loadingHistory, setLoadingHistory] =
-    useState(false);
-
-  const [historyError, setHistoryError] =
-    useState<string | null>(null);
-
+export default function UserDetail({ deviceId }: { deviceId: string }) {
+  const [user, setUser] = useState<UserData | null>(null);
+  const [realtime, setRealtime] = useState<RealtimeData | null>(null);
+  const [history, setHistory] = useState<(RealtimeData & HistoryPoint)[]>([]);
+  const [historyCursor, setHistoryCursor] = useState<HistoryCursor | null>(null);
+  const [hasOlderHistory, setHasOlderHistory] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [historyRange, setHistoryRange] = useState<HistoryRange>({});
+  const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+  const [flowUnit, setFlowUnit] = useState<FlowUnit>("m3h");
+  const [energyUnit, setEnergyUnit] = useState<EnergyUnit>("kwh");
+  const [tempUnit] = useState<TempUnit>("c");
+  const [pressureUnit, setPressureUnit] = useState<PressureUnit>("kpa");
   const expandedHistory = useRef(false);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [mounted, setMounted] =
-    useState(false);
-
-  const [flowUnit, setFlowUnit] =
-    useState<FlowUnit>("m3h");
-
-  const [energyUnit, setEnergyUnit] =
-    useState<EnergyUnit>("kwh");
-
-  const [tempUnit] =
-    useState<TempUnit>("c");
-
-  const [pressureUnit, setPressureUnit] =
-    useState<PressureUnit>("kpa");
-
-  /* ================= LEAFLET FIX ================= */
 
   useEffect(() => {
     import("leaflet").then((L) => {
       delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
-
       L.Icon.Default.mergeOptions({
         iconUrl: "/leaflet/marker-icon.png",
-        iconRetinaUrl:
-          "/leaflet/marker-icon-2x.png",
-        shadowUrl:
-          "/leaflet/marker-shadow.png",
+        iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+        shadowUrl: "/leaflet/marker-shadow.png",
       });
     });
-  }, []);
-
-  useEffect(() => {
     setMounted(true);
   }, []);
 
-  /* ================= FETCH USER ================= */
-
   useEffect(() => {
     const run = async () => {
-      const snap = await getDocs(query(collection(db, "users"), where("deviceId", "==", deviceId), limit(1)));
-      setUser(snap.docs[0]?.data() as UserData | undefined ?? null);
-
-      setLoading(false);
+      try {
+        const snapshot = await getDocs(
+          query(collection(db, "users"), where("deviceId", "==", deviceId), limit(1)),
+        );
+        setUser((snapshot.docs[0]?.data() as UserData | undefined) ?? null);
+      } finally {
+        setLoading(false);
+      }
     };
 
     run();
   }, [deviceId]);
-
-  /* ================= REALTIME + HISTORY ================= */
 
   useEffect(() => {
     let cancelled = false;
@@ -229,37 +159,75 @@ export default function UserDetail({
 
     const mode = historyMode(historyRange);
     expandedHistory.current = false;
-    const format = (page: HistoryPoint[]) => page.map((point) => ({ ...point, energy: point.energy || calculateEnergyKwh(point.flowrate) }));
+
+    const format = (page: HistoryPoint[]) =>
+      page.map((point) => ({
+        ...point,
+        energy: point.energy || calculateEnergyKwh(point.flowrate),
+      }));
+
     const receiveLiveHistory = (page: HistoryPoint[]) => {
       if (cancelled) return;
       const formatted = format(page);
-      setHistory((current) => (expandedHistory.current ? mergeHistoryPage(current, formatted) : formatted).map((point, index) => ({ ...point, index: index + 1 })));
-      setHistoryCursor((current) => expandedHistory.current ? current ?? page[0] ?? null : page[0] ?? null);
+
+      setHistory((current) =>
+        (expandedHistory.current ? mergeHistoryPage(current, formatted) : formatted).map(
+          (point, index) => ({ ...point, index: index + 1 }),
+        ),
+      );
+      setHistoryCursor((current) =>
+        expandedHistory.current ? current ?? page[0] ?? null : page[0] ?? null,
+      );
       setHasOlderHistory(page.length === HISTORY_PAGE_SIZE);
       setLoadingHistory(false);
     };
-    const stopHistory = mode === "live"
-      ? watchRecentHistory(deviceId, receiveLiveHistory, (error) => {
-          if (!cancelled) {
-            setHistoryError(error.message);
-            setLoadingHistory(false);
-          }
-        }, HISTORY_PAGE_SIZE)
-      : undefined;
+
+    const stopHistory =
+      mode === "live"
+        ? watchRecentHistory(
+            deviceId,
+            receiveLiveHistory,
+            (error) => {
+              if (!cancelled) {
+                setHistoryError(error.message);
+                setLoadingHistory(false);
+              }
+            },
+            HISTORY_PAGE_SIZE,
+          )
+        : undefined;
 
     if (mode === "range") {
-      getHistoryRange(deviceId, historyRange).then((page) => {
-        if (cancelled) return;
-        setHistory(format(page).map((point, index) => ({ ...point, index: index + 1 })));
-        setHistoryCursor(page[0] ?? null);
-        setHasOlderHistory(false);
-      }).catch((error: unknown) => {
-        if (!cancelled) setHistoryError(error instanceof Error ? error.message : "Gagal memuat histori.");
-      }).finally(() => !cancelled && setLoadingHistory(false));
+      getHistoryRange(deviceId, historyRange)
+        .then((page) => {
+          if (cancelled) return;
+          setHistory(
+            format(page).map((point, index) => ({ ...point, index: index + 1 })),
+          );
+          setHistoryCursor(page[0] ?? null);
+          setHasOlderHistory(false);
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            setHistoryError(
+              error instanceof Error ? error.message : "Gagal memuat histori.",
+            );
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingHistory(false);
+        });
     }
 
     const stopTelemetry = watchDeviceTelemetry(deviceId, (value) => {
-      setRealtime(value ? { ...value, energy: value.energy || calculateEnergyKwh(value.flowrate) } : null);
+      setRealtime(
+        value
+          ? {
+              ...value,
+              energy: value.energy || calculateEnergyKwh(value.flowrate),
+            }
+          : null,
+      );
     });
 
     return () => {
@@ -272,15 +240,32 @@ export default function UserDetail({
   const loadOlderHistory = async () => {
     if (!historyCursor || loadingHistory) return;
     setLoadingHistory(true);
+
     try {
-      const page = await getHistoryPage(deviceId, historyCursor, HISTORY_PAGE_SIZE, historyRange);
-      const formatted = page.map((point) => ({ ...point, energy: point.energy || calculateEnergyKwh(point.flowrate) }));
+      const page = await getHistoryPage(
+        deviceId,
+        historyCursor,
+        HISTORY_PAGE_SIZE,
+        historyRange,
+      );
+      const formatted = page.map((point) => ({
+        ...point,
+        energy: point.energy || calculateEnergyKwh(point.flowrate),
+      }));
+
       expandedHistory.current = true;
-      setHistory((current) => mergeHistoryPage(current, formatted).map((point, index) => ({ ...point, index: index + 1 })));
+      setHistory((current) =>
+        mergeHistoryPage(current, formatted).map((point, index) => ({
+          ...point,
+          index: index + 1,
+        })),
+      );
       setHistoryCursor(page[0] ?? historyCursor);
       setHasOlderHistory(page.length === HISTORY_PAGE_SIZE);
     } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : "Gagal memuat histori.");
+      setHistoryError(
+        error instanceof Error ? error.message : "Gagal memuat histori.",
+      );
     } finally {
       setLoadingHistory(false);
     }
@@ -292,414 +277,285 @@ export default function UserDetail({
       setHistoryError("Tanggal mulai harus sebelum tanggal selesai.");
       return;
     }
+
     setFromDate(from);
     setToDate(to);
     setHistoryRange(range);
   };
 
-  /* ================= CHART DATA ================= */
-
-  const chartData = useMemo(() => {
-    return history.map((d) => ({
-      ...d,
-
-      energyConverted:
-        convertEnergy(
-          d.energy,
-          energyUnit
-        ),
-    }));
-  }, [history, energyUnit]);
-
-  /* ================= LOADING ================= */
-
-  if (loading)
+  if (loading) {
     return (
-      <p className="p-6">
-        Loading...
-      </p>
+      <div className="space-y-4 p-6">
+        <div className="h-10 w-56 animate-pulse rounded-md bg-muted" />
+        <div className="h-40 animate-pulse rounded-xl border bg-card" />
+      </div>
     );
+  }
 
-  if (!user)
-    return (
-      <p className="p-6">
-        User tidak ditemukan
-      </p>
-    );
+  if (!user) {
+    return <p className="p-6 text-sm text-muted-foreground">User tidak ditemukan.</p>;
+  }
 
-  /* ================= LOCATION ================= */
-
-  const hasLocation =
-    typeof user.lat === "number" &&
-    typeof user.lng === "number";
-
+  const hasLocation = typeof user.lat === "number" && typeof user.lng === "number";
   const googleMapsUrl = hasLocation
     ? `https://www.google.com/maps?q=${user.lat},${user.lng}`
     : "";
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">Device {deviceId}</Badge>
+            <Badge variant="outline">{history.length} data histori</Badge>
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Detail perangkat</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Monitoring realtime, histori sensor, dan lokasi instalasi milik {user.fullname}.
+          </p>
+        </div>
 
-      {/* ACTION BUTTON */}
-      <div className="flex flex-wrap gap-3">
-
-        <Link href="/admin/user">
-          <Button
-            variant="secondary"
-            className="rounded-xl px-4 shadow-sm hover:shadow-md transition-all"
-          >
-            ← Kembali ke Daftar User
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/admin/user">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Daftar user
+            </Link>
           </Button>
-        </Link>
-
-        <ExportExcelButton
-          history={history}
-          deviceId={deviceId}
-        />
-
-        <DateRangePicker from={fromDate} to={toDate} onApply={applyDateRange} />
-
-        {!hasHistoryRange(historyRange) && (
-          <Button
-            variant="outline"
-            disabled={!hasOlderHistory || loadingHistory}
-            onClick={loadOlderHistory}
-          >
-            {loadingHistory ? "Memuat..." : hasOlderHistory ? "Muat data lebih lama" : "Semua histori dimuat"}
-          </Button>
-        )}
-
+          <ExportExcelButton history={history} deviceId={deviceId} />
+          <DateRangePicker from={fromDate} to={toDate} onApply={applyDateRange} />
+          {!hasHistoryRange(historyRange) && (
+            <Button
+              variant="outline"
+              disabled={!hasOlderHistory || loadingHistory}
+              onClick={loadOlderHistory}
+            >
+              {loadingHistory
+                ? "Memuat..."
+                : hasOlderHistory
+                  ? "Muat data lama"
+                  : "Semua histori dimuat"}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {historyError && (
-        <p className="text-sm text-destructive">Histori gagal dimuat: {historyError}</p>
-      )}
+      {historyError ? (
+        <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          Histori gagal dimuat: {historyError}
+        </div>
+      ) : null}
 
-      {/* USER INFO */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            Informasi User
-          </CardTitle>
+          <CardTitle className="text-base">Informasi pengguna</CardTitle>
+          <CardDescription>Identitas pemilik dan lokasi instalasi perangkat.</CardDescription>
         </CardHeader>
-
-        <CardContent className="text-sm space-y-1">
-
-          <p>
-            <b>Nama:</b>{" "}
-            {user.fullname}
-          </p>
-
-          <p>
-            <b>Email:</b>{" "}
-            {user.email}
-          </p>
-
-          <p>
-            <b>Lokasi:</b>{" "}
-            {user.locationName}
-          </p>
-
-          {hasLocation && (
-            <a
-              href={googleMapsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-primary underline text-xs"
-            >
-              Buka di Google Maps
-            </a>
-          )}
-
+        <CardContent className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+          <InfoItem label="Nama" value={user.fullname} />
+          <InfoItem label="Email" value={user.email} />
+          <div>
+            <p className="text-xs text-muted-foreground">Lokasi</p>
+            <p className="mt-1 font-medium">{user.locationName || "Belum tersedia"}</p>
+            {hasLocation ? (
+              <a
+                href={googleMapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-flex text-xs text-primary hover:underline"
+              >
+                Buka di Google Maps
+              </a>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
-      {/* REALTIME */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Realtime Sensor
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent className="grid grid-cols-2 gap-6 text-sm">
-
-          {/* FLOWRATE */}
-          <div className="flex justify-between items-center">
-
-            <div>
-              <b>Flowrate</b>
-              <br />
-
-              {convertFlow(
-                realtime?.flowrate ?? 0,
-                flowUnit
-              ).toFixed(3)}
-            </div>
-
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SensorCard
+          icon={Wind}
+          label="Flowrate"
+          value={convertFlow(realtime?.flowrate ?? 0, flowUnit).toFixed(3)}
+          unit={flowUnitLabel(flowUnit)}
+          tone="text-sky-600 dark:text-sky-300"
+          control={
             <select
               value={flowUnit}
-              onChange={(e) =>
-                setFlowUnit(
-                  e.target
-                    .value as FlowUnit
-                )
-              }
-              className="border bg-background p-1 rounded"
+              onChange={(event) => setFlowUnit(event.target.value as FlowUnit)}
+              className="h-8 rounded-md border bg-background px-2 text-xs"
             >
-              <option value="m3h">
-                m³/h
-              </option>
-
-              <option value="lmin">
-                L/min
-              </option>
+              <option value="m3h">m³/h</option>
+              <option value="lmin">L/min</option>
             </select>
-
-          </div>
-
-          {/* ENERGY */}
-          <div className="flex justify-between items-center">
-
-            <div>
-              <b>Energi</b>
-              <br />
-
-              {convertEnergy(
-                realtime?.energy ?? 0,
-                energyUnit
-              ).toFixed(3)}
-            </div>
-
+          }
+        />
+        <SensorCard
+          icon={Zap}
+          label="Energi"
+          value={convertEnergy(realtime?.energy ?? 0, energyUnit).toFixed(3)}
+          unit={energyUnitLabel(energyUnit)}
+          tone="text-violet-600 dark:text-violet-300"
+          control={
             <select
               value={energyUnit}
-              onChange={(e) =>
-                setEnergyUnit(
-                  e.target
-                    .value as EnergyUnit
-                )
-              }
-              className="border bg-background p-1 rounded"
+              onChange={(event) => setEnergyUnit(event.target.value as EnergyUnit)}
+              className="h-8 rounded-md border bg-background px-2 text-xs"
             >
-              <option value="kwh">
-                kWh
-              </option>
-
-              <option value="mj">
-                MJ
-              </option>
+              <option value="kwh">kWh</option>
+              <option value="mj">MJ</option>
             </select>
-
-          </div>
-
-          {/* TEMPERATURE */}
-          <div>
-            <b>Suhu</b>
-            <br />
-
-            {convertTemp(
-              realtime?.temperature ?? 0,
-              tempUnit
-            ).toFixed(2)}{" "}
-            °{tempUnit.toUpperCase()}
-          </div>
-
-          {/* PRESSURE */}
-          <div className="flex justify-between items-center">
-
-            <div>
-              <b>Tekanan</b>
-              <br />
-
-              {convertPressure(
-                realtime?.pressure ?? 0,
-                pressureUnit
-              ).toFixed(3)}
-            </div>
-
+          }
+        />
+        <SensorCard
+          icon={Thermometer}
+          label="Suhu"
+          value={convertTemp(realtime?.temperature ?? 0, tempUnit).toFixed(2)}
+          unit={`°${tempUnit.toUpperCase()}`}
+          tone="text-rose-600 dark:text-rose-300"
+        />
+        <SensorCard
+          icon={Gauge}
+          label="Tekanan"
+          value={convertPressure(realtime?.pressure ?? 0, pressureUnit).toFixed(3)}
+          unit={pressureUnitLabel(pressureUnit)}
+          tone="text-amber-600 dark:text-amber-300"
+          control={
             <select
               value={pressureUnit}
-              onChange={(e) =>
-                setPressureUnit(
-                  e.target
-                    .value as PressureUnit
-                )
-              }
-              className="border bg-background p-1 rounded"
+              onChange={(event) => setPressureUnit(event.target.value as PressureUnit)}
+              className="h-8 rounded-md border bg-background px-2 text-xs"
             >
-              <option value="kpa">
-                kPa
-              </option>
-
-              <option value="bar">
-                Bar
-              </option>
+              <option value="kpa">kPa</option>
+              <option value="bar">bar</option>
             </select>
+          }
+        />
+      </div>
 
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-primary" />
+          <div>
+            <h2 className="font-medium">Histori sensor</h2>
+            <p className="text-xs text-muted-foreground">
+              Semua grafik menggunakan komponen chart shadcn yang sama agar skala, tooltip, dan dark mode konsisten.
+            </p>
           </div>
+        </div>
 
-        </CardContent>
-      </Card>
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b bg-muted/20">
+            <CardTitle className="text-base">Energi</CardTitle>
+            <CardDescription>Perubahan energi dalam {energyUnitLabel(energyUnit)}.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4">
+            <EnergyChart data={history} unit={energyUnit} />
+          </CardContent>
+        </Card>
 
-      {/* ENERGY CHART */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Grafik Energi (
-            {energyUnit})
-          </CardTitle>
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/20">
+              <CardTitle className="text-base">Flowrate</CardTitle>
+              <CardDescription>Perubahan flowrate dalam {flowUnitLabel(flowUnit)}.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-4">
+              <FlowrateChart data={history} unit={flowUnit} />
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/20">
+              <CardTitle className="text-base">Tekanan</CardTitle>
+              <CardDescription>Perubahan tekanan dalam {pressureUnitLabel(pressureUnit)}.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-4">
+              <PressureChart data={history} unit={pressureUnit} />
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b bg-muted/20">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-primary">
+              <MapPin className="h-4 w-4" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Lokasi perangkat</CardTitle>
+              <CardDescription>Posisi instalasi yang tersimpan pada profil pengguna.</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-
-        <CardContent className="h-72">
-
-          <ResponsiveContainer
-            width="100%"
-            height="100%"
-          >
-            <AreaChart
-              data={chartData}
-            >
-              <defs>
-                <linearGradient
-                  id="energyGradient"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor="#22c55e"
-                    stopOpacity={0.8}
-                  />
-
-                  <stop
-                    offset="100%"
-                    stopColor="#22c55e"
-                    stopOpacity={0}
-                  />
-                </linearGradient>
-              </defs>
-
-              <CartesianGrid
-                strokeDasharray="3 3"
-                opacity={0.15}
-              />
-
-              <XAxis dataKey="index" />
-
-              <YAxis />
-
-              <Tooltip />
-
-              <Area
-                type="monotone"
-                dataKey="energyConverted"
-                stroke="#16a34a"
-                strokeWidth={2.5}
-                fill="url(#energyGradient)"
-              />
-
-            </AreaChart>
-          </ResponsiveContainer>
-
-        </CardContent>
-      </Card>
-
-      {/* FLOWRATE CHART */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Grafik Flowrate (
-            {flowUnit})
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent>
-          <FlowrateChart
-            data={history}
-            unit={flowUnit}
-          />
-        </CardContent>
-      </Card>
-
-      {/* PRESSURE CHART */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Grafik Tekanan (
-            {pressureUnit})
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent>
-          <PressureChart
-            data={history}
-            unit={pressureUnit}
-          />
-        </CardContent>
-      </Card>
-
-      {/* MAP */}
-      <Card>
-
-        <CardHeader>
-          <CardTitle>
-            Lokasi Perangkat
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent>
-
+        <CardContent className="p-4">
           {mounted && hasLocation ? (
-
-            <div className="h-[300px] w-full rounded overflow-hidden">
-
+            <div className="h-[300px] w-full overflow-hidden rounded-lg border">
               <MapContainer
                 key={`${user.lat}-${user.lng}`}
-                center={[
-                  user.lat!,
-                  user.lng!,
-                ]}
+                center={[user.lat!, user.lng!]}
                 zoom={15}
                 scrollWheelZoom={false}
                 className="h-full w-full"
               >
-
-                {mounted && (
-                  <>
-                    <TileLayer
-                      attribution='&copy; OpenStreetMap contributors'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-
-                    <Marker
-                      position={[
-                        user.lat!,
-                        user.lng!,
-                      ]}
-                    >
-                      <Popup>
-                        {user.locationName}
-                      </Popup>
-                    </Marker>
-                  </>
-                )}
-
+                <TileLayer
+                  attribution="&copy; OpenStreetMap contributors"
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <Marker position={[user.lat!, user.lng!]}>
+                  <Popup>{user.locationName}</Popup>
+                </Marker>
               </MapContainer>
-
             </div>
-
           ) : (
-            <p className="text-sm text-muted-foreground">
-              Lokasi belum tersedia
-            </p>
+            <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+              Lokasi belum tersedia.
+            </div>
           )}
-
         </CardContent>
-
       </Card>
-
     </div>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 font-medium">{value || "-"}</p>
+    </div>
+  );
+}
+
+function SensorCard({
+  icon: Icon,
+  label,
+  value,
+  unit,
+  tone,
+  control,
+}: {
+  icon: typeof Wind;
+  label: string;
+  value: string;
+  unit: string;
+  tone: string;
+  control?: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+        <div className={`flex h-9 w-9 items-center justify-center rounded-lg border bg-muted/20 ${tone}`}>
+          <Icon className="h-4 w-4" />
+        </div>
+        {control}
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <div className="mt-1 flex items-baseline gap-2">
+          <span className="text-2xl font-semibold tracking-tight tabular-nums">{value}</span>
+          <span className="text-xs text-muted-foreground">{unit}</span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
