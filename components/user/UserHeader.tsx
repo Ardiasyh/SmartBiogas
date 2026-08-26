@@ -3,17 +3,24 @@
 import { useEffect, useMemo, useState } from "react"
 import { onAuthStateChanged } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
-import { motion } from "framer-motion"
 import { Activity, Sparkles } from "lucide-react"
 
 import { auth, db } from "@/lib/firebase"
+import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 type Props = {
   status?: string
 }
 
 export default function UserHeader({ status }: Props) {
-  const [username, setUsername] = useState<string>("")
+  const [username, setUsername] = useState("")
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -26,13 +33,7 @@ export default function UserHeader({ status }: Props) {
 
       try {
         const snap = await getDoc(doc(db, "users", user.uid))
-
-        if (snap.exists()) {
-          const data = snap.data()
-          setUsername(data.fullname || "User")
-        } else {
-          setUsername("User")
-        }
+        setUsername(snap.exists() ? snap.data().fullname || "User" : "User")
       } catch (error) {
         console.error("Gagal mengambil data user:", error)
         setUsername("User")
@@ -44,77 +45,52 @@ export default function UserHeader({ status }: Props) {
     return () => unsubscribe()
   }, [])
 
-  const online = useMemo(
-    () => status?.toLowerCase() === "online",
-    [status],
-  )
+  const online = useMemo(() => status?.toLowerCase() === "online", [status])
 
   if (loading) {
     return (
-      <div className="overflow-hidden rounded-[2rem] border border-border/60 bg-card/70 p-6 shadow-sm backdrop-blur-xl sm:p-8">
-        <div className="h-4 w-24 animate-pulse rounded-full bg-muted" />
-        <div className="mt-4 h-10 w-64 max-w-full animate-pulse rounded-2xl bg-muted" />
-        <div className="mt-3 h-4 w-80 max-w-full animate-pulse rounded-full bg-muted" />
-      </div>
+      <Card>
+        <CardHeader>
+          <div className="h-5 w-28 animate-pulse rounded bg-muted" />
+          <div className="mt-2 h-8 w-64 max-w-full animate-pulse rounded bg-muted" />
+          <div className="mt-2 h-4 w-80 max-w-full animate-pulse rounded bg-muted" />
+        </CardHeader>
+      </Card>
     )
   }
 
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="relative overflow-hidden rounded-[2rem] border border-indigo-500/10 bg-card/75 p-6 shadow-[0_24px_80px_-36px_rgba(79,70,229,0.28)] backdrop-blur-xl sm:p-8"
-    >
-      <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-indigo-500/12 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 right-1/3 h-36 w-36 rounded-full bg-cyan-400/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-16 left-1/4 h-32 w-32 rounded-full bg-violet-500/8 blur-3xl" />
-
-      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-500/15 bg-indigo-500/8 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-300">
-            <Sparkles className="h-3.5 w-3.5" />
-            Smart Biogas Monitoring
-          </div>
-
-          <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-            Halo, {username}
-          </h1>
-
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-            Pantau kondisi digester, aliran gas, tekanan, suhu, dan energi secara realtime dari satu dashboard.
-          </p>
-        </div>
-
-        <div
-          className={`inline-flex w-fit items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm ${
-            online
-              ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
-              : "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300"
-          }`}
-        >
-          <span className="relative flex h-3 w-3">
-            {online && (
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-60" />
-            )}
-            <span
-              className={`relative inline-flex h-3 w-3 rounded-full ${
-                online ? "bg-cyan-500" : "bg-rose-500"
-              }`}
-            />
-          </span>
-
+    <Card className="overflow-hidden shadow-sm">
+      <CardHeader className="pb-4">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">
-              Device status
-            </p>
-            <p className="flex items-center gap-1.5 text-sm font-bold">
-              <Activity className="h-4 w-4" />
-              {online ? "Online" : "Offline"}
-            </p>
+            <Badge variant="secondary" className="mb-3">
+              <Sparkles className="h-3 w-3" />
+              Smart Biogas Monitoring
+            </Badge>
+            <CardTitle className="text-2xl sm:text-3xl">Halo, {username}</CardTitle>
+            <CardDescription className="mt-2 max-w-2xl text-sm leading-6">
+              Pantau kondisi digester, aliran gas, tekanan, suhu, energi, dan histori perangkat dari satu dashboard.
+            </CardDescription>
           </div>
+
+          <Badge
+            variant="outline"
+            className={
+              online
+                ? "border-sky-500/30 bg-sky-500/5 px-3 py-1.5 text-sky-700 dark:text-sky-400"
+                : "border-rose-500/30 bg-rose-500/5 px-3 py-1.5 text-rose-700 dark:text-rose-400"
+            }
+          >
+            <span className={`h-2 w-2 rounded-full ${online ? "bg-sky-500" : "bg-rose-500"}`} />
+            <Activity className="h-3 w-3" />
+            {online ? "Device online" : "Device offline"}
+          </Badge>
         </div>
-      </div>
-    </motion.section>
+      </CardHeader>
+      <CardContent className="border-t bg-muted/20 py-3 text-xs text-muted-foreground">
+        Data realtime dibaca dari perangkat yang terhubung ke akun ini.
+      </CardContent>
+    </Card>
   )
 }
