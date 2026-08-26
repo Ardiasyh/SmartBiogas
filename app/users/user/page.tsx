@@ -51,7 +51,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 
-
 type UserData = {
   fullname: string
   email: string
@@ -66,9 +65,6 @@ type UserData = {
 
 type EditableProfile = {
   fullname: string
-  locationName: string
-  province: string
-  city: string
 }
 
 function initials(name: string) {
@@ -98,12 +94,7 @@ export default function UserProfilePage() {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [sendingReset, setSendingReset] = useState(false)
-  const [form, setForm] = useState<EditableProfile>({
-    fullname: "",
-    locationName: "",
-    province: "",
-    city: "",
-  })
+  const [form, setForm] = useState<EditableProfile>({ fullname: "" })
 
   useEffect(() => setMounted(true), [])
 
@@ -125,12 +116,7 @@ export default function UserProfilePage() {
         if (snap.exists()) {
           const data = snap.data() as UserData
           setUser(data)
-          setForm({
-            fullname: data.fullname ?? "",
-            locationName: data.locationName ?? "",
-            province: data.province ?? "",
-            city: data.city ?? "",
-          })
+          setForm({ fullname: data.fullname ?? "" })
         }
       } catch (error) {
         console.error("Error fetch user:", error)
@@ -161,12 +147,7 @@ export default function UserProfilePage() {
     const currentUser = auth.currentUser
     if (!currentUser || !user) return
 
-    const next = {
-      fullname: form.fullname.trim(),
-      locationName: form.locationName.trim(),
-      province: form.province.trim(),
-      city: form.city.trim(),
-    }
+    const next = { fullname: form.fullname.trim() }
 
     if (!next.fullname) {
       toast.error("Nama tidak boleh kosong.")
@@ -249,7 +230,7 @@ export default function UserProfilePage() {
           </div>
           <h1 className="text-3xl font-semibold tracking-tight">Profil Saya</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Kelola informasi akun, perangkat, lokasi instalasi, dan preferensi tampilan.
+            Kelola informasi akun dan preferensi tampilan. Data lokasi instalasi dikelola administrator.
           </p>
         </div>
 
@@ -300,6 +281,11 @@ export default function UserProfilePage() {
                 <DetailItem icon={LocateFixed} label="Nama lokasi instalasi" value={user.locationName || "Belum diisi"} />
               </div>
             </CardContent>
+            <CardFooter className="border-t bg-muted/20 px-6 py-4">
+              <p className="text-xs text-muted-foreground">
+                Informasi wilayah dan titik instalasi hanya dapat diperbarui oleh administrator setelah akun dibuat.
+              </p>
+            </CardFooter>
           </Card>
 
           <Card>
@@ -330,7 +316,7 @@ export default function UserProfilePage() {
             <div>
               <CardTitle className="text-base">Lokasi instalasi</CardTitle>
               <CardDescription className="mt-1">
-                Geser marker lalu simpan jika lokasi perangkat perlu diperbarui.
+                Titik lokasi ini bersifat read-only dan ditetapkan oleh administrator.
               </CardDescription>
             </div>
             {hasLocation && (
@@ -411,7 +397,7 @@ export default function UserProfilePage() {
           <DialogHeader>
             <DialogTitle>Edit profil</DialogTitle>
             <DialogDescription>
-              Perbarui informasi akun dan lokasi instalasi. Email dan Device ID tidak dapat diubah dari sini.
+              Pengguna hanya dapat memperbarui nama profil. Email, Device ID, dan informasi lokasi tidak dapat diubah dari halaman ini.
             </DialogDescription>
           </DialogHeader>
 
@@ -421,42 +407,18 @@ export default function UserProfilePage() {
               <Input
                 id="profile-name"
                 value={form.fullname}
-                onChange={(event) => setForm((current) => ({ ...current, fullname: event.target.value }))}
+                onChange={(event) => setForm({ fullname: event.target.value })}
               />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="profile-location">Nama lokasi</Label>
-              <Input
-                id="profile-location"
-                value={form.locationName}
-                onChange={(event) => setForm((current) => ({ ...current, locationName: event.target.value }))}
-                placeholder="Contoh: Digester Kampus"
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="profile-province">Provinsi</Label>
-                <Input
-                  id="profile-province"
-                  value={form.province}
-                  onChange={(event) => setForm((current) => ({ ...current, province: event.target.value }))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="profile-city">Kota / Kabupaten</Label>
-                <Input
-                  id="profile-city"
-                  value={form.city}
-                  onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
-                />
-              </div>
             </div>
 
             <div className="grid gap-2">
               <Label>Email</Label>
               <Input value={user.email} disabled />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Lokasi instalasi</Label>
+              <Input value={user.locationName || "Dikelola administrator"} disabled />
             </div>
 
             <div className="grid gap-2">
