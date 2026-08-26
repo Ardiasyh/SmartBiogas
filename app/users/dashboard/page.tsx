@@ -14,6 +14,14 @@ import UserBiogasCard from "@/components/user/UserBiogasCard"
 import ChartTotalEnergyUser from "@/components/charts/user/ChartTotalEnergyUser"
 import ChartFlowrateUser from "@/components/charts/user/ChartFlowrateUse"
 import ChartPressureUser from "@/components/charts/user/ChartPressureUser"
+import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 import { calculateEnergyKwh } from "@/lib/biogas"
 import type { FlowUnit, PressureUnit, EnergyUnit } from "@/lib/converters"
@@ -93,7 +101,7 @@ export default function UserPage() {
   }, [])
 
   return (
-    <div className="space-y-8 pb-8">
+    <div className="space-y-6 pb-8">
       <UserHeader status={status} />
 
       <UserBiogasCard
@@ -111,18 +119,26 @@ export default function UserPage() {
       />
 
       {deviceId && (
-        <section className="space-y-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-300">
-              <BarChart3 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
-                Analytics
-              </p>
-              <h2 className="text-xl font-bold tracking-tight">Riwayat performa perangkat</h2>
-            </div>
-          </div>
+        <section className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="mb-2 flex items-center gap-2">
+                  <CardTitle className="text-base">Riwayat performa perangkat</CardTitle>
+                  <Badge variant="secondary" className="gap-1.5 font-normal">
+                    <BarChart3 className="h-3 w-3" /> Analytics
+                  </Badge>
+                </div>
+                <CardDescription>
+                  Pantau tren energi, flowrate, dan tekanan dari histori perangkat yang tersimpan.
+                </CardDescription>
+              </div>
+
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                Device <span className="font-mono font-medium text-foreground">{deviceId}</span>
+              </div>
+            </CardHeader>
+          </Card>
 
           <ChartTotalEnergyUser deviceId={deviceId} />
 
@@ -133,29 +149,31 @@ export default function UserPage() {
         </section>
       )}
 
-      <section className="overflow-hidden rounded-[2rem] border border-border/70 bg-card/75 shadow-[0_18px_60px_-38px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-        <div className="flex flex-col gap-3 border-b border-border/60 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-300">
-              <MapPin className="h-5 w-5" />
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b bg-muted/20">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background text-primary">
+                <MapPin className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Lokasi instalasi biogas</CardTitle>
+                <CardDescription className="mt-1">
+                  Perbarui koordinat perangkat langsung dari peta.
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">Installation</p>
-              <h2 className="text-lg font-bold tracking-tight">Lokasi instalasi biogas</h2>
-            </div>
-          </div>
 
-          <p className="max-w-md text-xs leading-5 text-muted-foreground">
-            Geser marker atau klik peta untuk memperbarui koordinat perangkat dengan lebih akurat.
-          </p>
-        </div>
-
-        <div className="p-3 sm:p-4">
-          <div className="overflow-hidden rounded-[1.5rem] border border-border/60">
-            <UserEditableMap />
+            <Badge variant="outline" className="w-fit font-normal">
+              Klik atau geser marker
+            </Badge>
           </div>
-        </div>
-      </section>
+        </CardHeader>
+
+        <CardContent className="p-5">
+          <UserEditableMap />
+        </CardContent>
+      </Card>
     </div>
   )
 }
