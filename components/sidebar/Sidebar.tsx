@@ -46,24 +46,24 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border/70 bg-sidebar/90 text-sidebar-foreground backdrop-blur-2xl">
+    <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border/70 bg-sidebar/88 text-sidebar-foreground backdrop-blur-2xl">
       <div className="border-b border-border/60 px-5 pb-5 pt-6">
         <div className="flex items-center gap-3">
-          <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+          <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-primary to-violet-500 text-white shadow-lg shadow-indigo-500/20">
             <Leaf className="h-5 w-5" />
-            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-sidebar bg-emerald-400" />
+            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-sidebar bg-cyan-400" />
           </div>
 
           <div className="min-w-0">
-            <p className="truncate text-base font-bold tracking-tight">Smart Biogas</p>
+            <p className="truncate text-base font-black tracking-tight">Smart Biogas</p>
             <p className="truncate text-xs font-medium text-muted-foreground">{title}</p>
           </div>
         </div>
 
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-primary/10 bg-primary/5 px-3 py-2.5">
+        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-indigo-500/10 bg-gradient-to-r from-indigo-500/7 via-violet-500/5 to-cyan-500/7 px-3 py-2.5">
           <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-60" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-500" />
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -97,7 +97,7 @@ export default function Sidebar({
                 className={cn(
                   "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200",
                   active
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/15"
+                    ? "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/20"
                     : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 )}
               >
@@ -105,7 +105,7 @@ export default function Sidebar({
                   className={cn(
                     "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all duration-200",
                     active
-                      ? "bg-white/15 text-primary-foreground"
+                      ? "bg-white/15 text-white"
                       : "bg-muted/70 text-muted-foreground group-hover:bg-background group-hover:text-primary",
                   )}
                 >
@@ -137,30 +137,15 @@ export default function Sidebar({
 
           {mounted && (
             <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted/60 p-1">
-              <ThemeButton
-                active={theme === "light"}
-                label="Light"
-                onClick={() => setTheme("light")}
-                icon={Sun}
-              />
-              <ThemeButton
-                active={theme === "dark"}
-                label="Dark"
-                onClick={() => setTheme("dark")}
-                icon={Moon}
-              />
-              <ThemeButton
-                active={theme === "system"}
-                label="Auto"
-                onClick={() => setTheme("system")}
-                icon={Laptop}
-              />
+              <ThemeButton active={theme === "light"} label="Light" onClick={() => setTheme("light")} icon={Sun} />
+              <ThemeButton active={theme === "dark"} label="Dark" onClick={() => setTheme("dark")} icon={Moon} />
+              <ThemeButton active={theme === "system"} label="Auto" onClick={() => setTheme("system")} icon={Laptop} />
             </div>
           )}
 
           <button
             onClick={logout}
-            className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
+            className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-500/10 dark:text-rose-400"
           >
             <LogOut className="h-4 w-4" />
             Logout
@@ -188,7 +173,7 @@ function ThemeButton({
       className={cn(
         "flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-medium transition-all",
         active
-          ? "bg-background text-foreground shadow-sm"
+          ? "bg-background text-foreground shadow-sm ring-1 ring-indigo-500/10"
           : "text-muted-foreground hover:text-foreground",
       )}
       aria-label={`${label} mode`}
