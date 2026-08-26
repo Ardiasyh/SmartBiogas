@@ -89,11 +89,11 @@ export default function ChartEnergyUser({ deviceId }: Props) {
     <div className="overflow-hidden rounded-[2rem] border border-border/70 bg-card/75 shadow-[0_20px_60px_-42px_rgba(0,0,0,0.5)] backdrop-blur-xl">
       <div className="flex flex-col gap-4 border-b border-border/60 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-300">
             <Zap className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">Energy analytics</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-300">Energy analytics</p>
             <h3 className="mt-1 text-lg font-bold tracking-tight">Energi Biogas</h3>
             <p className="text-xs text-muted-foreground">20 data history terbaru</p>
           </div>
@@ -115,8 +115,9 @@ export default function ChartEnergyUser({ deviceId }: Props) {
             <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
               <defs>
                 <linearGradient id="energyAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#22c55e" stopOpacity={0.45} />
-                  <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.46} />
+                  <stop offset="60%" stopColor="#6366f1" stopOpacity={0.18} />
+                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
                 </linearGradient>
               </defs>
 
@@ -141,7 +142,7 @@ export default function ChartEnergyUser({ deviceId }: Props) {
                 contentStyle={{
                   borderRadius: 16,
                   border: "1px solid rgba(148,163,184,.2)",
-                  background: "rgba(15,23,42,.92)",
+                  background: "rgba(30,27,75,.94)",
                   color: "white",
                 }}
                 formatter={(value) => [`${Number(value).toFixed(3)} kWh`, "Energi"]}
@@ -150,7 +151,7 @@ export default function ChartEnergyUser({ deviceId }: Props) {
               <Area
                 type="monotone"
                 dataKey="energy"
-                stroke="#22c55e"
+                stroke="#8b5cf6"
                 fill="url(#energyAreaGradient)"
                 strokeWidth={3}
                 dot={false}
@@ -177,12 +178,12 @@ function MiniStat({
     <div
       className={`rounded-2xl border px-3 py-2 text-right ${
         emphasis
-          ? "border-emerald-500/20 bg-emerald-500/10"
+          ? "border-violet-500/20 bg-violet-500/10"
           : "border-border/70 bg-background/55"
       }`}
     >
       <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <p className={`mt-0.5 text-sm font-black ${emphasis ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+      <p className={`mt-0.5 text-sm font-black ${emphasis ? "text-violet-600 dark:text-violet-300" : ""}`}>
         {value}
       </p>
     </div>
