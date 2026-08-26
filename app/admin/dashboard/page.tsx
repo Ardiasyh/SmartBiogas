@@ -1,95 +1,93 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { MapPinned, ShieldCheck, UsersRound } from "lucide-react";
+import { useState } from "react"
+import { MapPinned, ShieldCheck, UsersRound } from "lucide-react"
 
-import UserTable from "@/components/admin/user-table";
-import UserDashboardOverview from "@/components/admin/UserDashboardOverview";
-import DeviceMap from "@/components/admin/DeviceMap";
+import UserTable from "@/components/admin/user-table"
+import UserDashboardOverview from "@/components/admin/UserDashboardOverview"
+import DeviceMap from "@/components/admin/DeviceMap"
+import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 export default function AdminDashboardPage() {
-  const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
+  const [selectedProvince, setSelectedProvince] = useState<string | null>(null)
 
   return (
-    <div className="space-y-8 pb-8">
-      <section className="relative overflow-hidden rounded-[2rem] border border-indigo-500/10 bg-card/75 p-6 shadow-[0_22px_70px_-42px_rgba(79,70,229,0.30)] backdrop-blur-xl sm:p-8">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-40 w-40 rounded-full bg-violet-500/8 blur-3xl" />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-500/15 bg-indigo-500/8 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-300">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Administration center
-            </div>
-            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Admin Dashboard</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-              Pantau performa sistem, konektivitas perangkat, lokasi instalasi, dan aktivitas pengguna dari satu panel.
-            </p>
-          </div>
-
-          <div className="flex w-fit items-center gap-3 rounded-2xl border border-cyan-500/15 bg-cyan-500/8 px-4 py-3 text-cyan-700 shadow-sm backdrop-blur dark:text-cyan-300">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-60" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-cyan-500" />
-            </span>
+    <div className="space-y-6 pb-8">
+      <Card className="shadow-sm">
+        <CardHeader>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">Firebase</p>
-              <p className="text-sm font-bold">Realtime monitoring aktif</p>
+              <Badge variant="secondary" className="mb-3">
+                <ShieldCheck className="h-3 w-3" />
+                Administration center
+              </Badge>
+              <CardTitle className="text-2xl sm:text-3xl">Admin Dashboard</CardTitle>
+              <CardDescription className="mt-2 max-w-2xl text-sm leading-6">
+                Pantau performa sistem, konektivitas perangkat, lokasi instalasi, dan aktivitas pengguna dari satu panel.
+              </CardDescription>
             </div>
+
+            <Badge variant="outline" className="w-fit border-sky-500/30 text-sky-700 dark:text-sky-400">
+              <span className="h-2 w-2 rounded-full bg-sky-500" />
+              Firebase realtime aktif
+            </Badge>
           </div>
-        </div>
-      </section>
+        </CardHeader>
+      </Card>
 
       <UserDashboardOverview />
 
-      <section className="overflow-hidden rounded-[2rem] border border-border/70 bg-card/75 shadow-[0_20px_60px_-42px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-        <div className="flex flex-col gap-3 border-b border-border/60 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-600 dark:text-sky-300">
-              <MapPinned className="h-5 w-5" />
+      <Card className="shadow-sm">
+        <CardHeader className="border-b">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-md border bg-muted">
+                <MapPinned className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+              </span>
+              <div>
+                <CardTitle className="text-lg">Peta instalasi perangkat</CardTitle>
+                <CardDescription>Lokasi user dan perangkat yang sudah terdaftar.</CardDescription>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">Device map</p>
-              <h2 className="text-xl font-bold tracking-tight">Peta instalasi perangkat</h2>
-            </div>
+
+            {selectedProvince && (
+              <Badge variant="secondary">Filter: {selectedProvince}</Badge>
+            )}
           </div>
-
-          {selectedProvince && (
-            <div className="w-fit rounded-full border border-sky-500/15 bg-sky-500/8 px-3 py-1.5 text-xs font-semibold text-sky-700 dark:text-sky-300">
-              Filter: {selectedProvince}
-            </div>
-          )}
-        </div>
-
-        <div className="p-3 sm:p-5">
+        </CardHeader>
+        <CardContent className="p-3 sm:p-5">
           <DeviceMap
             selectedProvince={selectedProvince}
             onSelectProvince={setSelectedProvince}
           />
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      <section className="overflow-hidden rounded-[2rem] border border-border/70 bg-card/75 shadow-[0_20px_60px_-42px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-        <div className="flex flex-col gap-3 border-b border-border/60 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-300">
-              <UsersRound className="h-5 w-5" />
-            </div>
+      <Card className="shadow-sm">
+        <CardHeader className="border-b">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md border bg-muted">
+              <UsersRound className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+            </span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">User management</p>
-              <h2 className="text-xl font-bold tracking-tight">Daftar pengguna</h2>
+              <CardTitle className="text-lg">Daftar pengguna</CardTitle>
+              <CardDescription>
+                Review akun, device ID, lokasi, dan status konektivitas pengguna.
+              </CardDescription>
             </div>
           </div>
-
-          <p className="text-xs leading-5 text-muted-foreground">
-            Review akun, device ID, lokasi, dan status konektivitas.
-          </p>
-        </div>
-
-        <div className="p-3 sm:p-5">
+        </CardHeader>
+        <CardContent className="p-3 sm:p-5">
           <UserTable filterProvince={selectedProvince} />
-        </div>
-      </section>
+        </CardContent>
+      </Card>
     </div>
-  );
+  )
 }
