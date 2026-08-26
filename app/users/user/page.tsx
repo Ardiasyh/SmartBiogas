@@ -6,7 +6,6 @@ import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
 import {
-  Activity,
   BadgeCheck,
   Building2,
   CheckCircle2,
