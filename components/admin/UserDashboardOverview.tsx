@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { motion } from "framer-motion";
 import {
@@ -12,33 +12,33 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { db } from "@/lib/firebase";
 import { watchDeviceTelemetry } from "@/lib/device-telemetry";
 import { watchRecentHistory, type HistoryPoint } from "@/lib/device-history";
 import type { Telemetry } from "@/lib/telemetry";
-
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
-
-const OFFLINE_THRESHOLD = 15000;
+const OFFLINE_THRESHOLD = 15_000;
 const HISTORY_LIMIT_PER_DEVICE = 20;
 
 type EnergyUnit = "kwh" | "mj";
@@ -52,7 +52,6 @@ function formatTime(timestamp: number) {
   return new Date(timestamp).toLocaleTimeString("id-ID", {
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
   });
 }
 
@@ -113,9 +112,9 @@ export default function AdminDashboardOverview() {
       setRawLogs(merged);
     };
 
-    const unsubscribeUsers = onSnapshot(collection(db, "users"), (snap) => {
+    const unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       const deviceIds = new Set(
-        snap.docs
+        snapshot.docs
           .map((document) => document.data().deviceId)
           .filter(
             (value): value is string =>
@@ -199,37 +198,34 @@ export default function AdminDashboardOverview() {
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-[2rem] border border-indigo-500/10 bg-card/75 p-6 shadow-[0_20px_70px_-40px_rgba(79,70,229,0.32)] backdrop-blur-xl"
-      >
-        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-[-5rem] left-1/3 h-40 w-40 rounded-full bg-violet-500/8 blur-3xl" />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      <Card>
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-500/15 bg-indigo-500/8 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-300">
-              <Activity className="h-3.5 w-3.5" />
-              Live system overview
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <CardTitle className="text-xl">Kondisi sistem saat ini</CardTitle>
+              <Badge variant="secondary" className="gap-1.5 font-normal">
+                <Activity className="h-3 w-3" /> Realtime
+              </Badge>
             </div>
-            <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Kondisi sistem saat ini</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Ringkasan energi, pengguna, dan konektivitas perangkat yang diperbarui otomatis dari Firebase.
-            </p>
+            <CardDescription>
+              Ringkasan energi, pengguna, dan konektivitas perangkat dari Firebase.
+            </CardDescription>
           </div>
 
-          <div className="flex w-fit items-center gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-cyan-700 dark:text-cyan-300">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-60" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-cyan-500" />
+          <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+            <span className="relative flex h-2.5 w-2.5">
+              {onlineDevices > 0 && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-60" />
+              )}
+              <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${onlineDevices > 0 ? "bg-cyan-500" : "bg-muted-foreground"}`} />
             </span>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">System health</p>
-              <p className="text-sm font-bold">{onlinePercent}% perangkat online</p>
+              <p className="text-xs text-muted-foreground">System health</p>
+              <p className="text-sm font-medium">{onlinePercent}% perangkat online</p>
             </div>
           </div>
-        </div>
-      </motion.div>
+        </CardHeader>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -244,7 +240,7 @@ export default function AdminDashboardOverview() {
             <select
               value={energyUnit}
               onChange={(event) => setEnergyUnit(event.target.value as EnergyUnit)}
-              className="rounded-xl border border-border/70 bg-background/70 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+              className="h-8 rounded-md border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-2 focus:ring-ring/40"
             >
               <option value="kwh">kWh</option>
               <option value="mj">MJ</option>
@@ -277,91 +273,114 @@ export default function AdminDashboardOverview() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.75fr)]">
-        <Card className="overflow-hidden rounded-[2rem] border-border/70 bg-card/75 shadow-[0_20px_60px_-42px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-          <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/60 pb-5">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.75fr)]">
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 border-b bg-muted/20">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-300">Energy analytics</p>
-              <CardTitle className="mt-1 text-xl">Trend energi terbaru</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">20 data history terakhir dari seluruh perangkat</p>
+              <CardTitle className="text-base">Trend energi terbaru</CardTitle>
+              <CardDescription className="mt-1">20 data histori terakhir dari seluruh perangkat</CardDescription>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-300">
-              <BatteryCharging className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-violet-600 dark:text-violet-300">
+              <BatteryCharging className="h-4 w-4" />
             </div>
           </CardHeader>
 
-          <CardContent className="h-[360px] px-2 pb-4 pt-6 sm:px-5">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -12, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="adminEnergyGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.44} />
-                    <stop offset="55%" stopColor="#6366f1" stopOpacity={0.16} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
+          <CardContent className="h-[350px] px-2 pb-4 pt-5 sm:px-4">
+            {chartData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Belum ada histori energi.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="adminEnergyGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--chart-4)" stopOpacity={0.30} />
+                      <stop offset="88%" stopColor="var(--chart-4)" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
 
-                <CartesianGrid strokeDasharray="4 4" vertical={false} opacity={0.08} />
-                <XAxis dataKey="time" tickLine={false} axisLine={false} fontSize={11} minTickGap={24} />
-                <YAxis tickLine={false} axisLine={false} fontSize={11} width={58} />
-                <Tooltip
-                  cursor={{ strokeDasharray: "4 4", strokeOpacity: 0.25 }}
-                  contentStyle={{
-                    borderRadius: 16,
-                    border: "1px solid rgba(148,163,184,.2)",
-                    background: "rgba(30,27,75,.94)",
-                    color: "white",
-                    boxShadow: "0 18px 50px -20px rgba(0,0,0,.6)",
-                  }}
-                  formatter={(value) => [
-                    `${Number(value).toFixed(3)} ${energyUnit === "kwh" ? "kWh" : "MJ"}`,
-                    "Energi",
-                  ]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="energy"
-                  stroke="#8b5cf6"
-                  fill="url(#adminEnergyGradient)"
-                  strokeWidth={3}
-                  dot={false}
-                  activeDot={{ r: 5, strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+                  <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 5" />
+                  <XAxis
+                    dataKey="time"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={11}
+                    minTickGap={28}
+                    tickMargin={10}
+                    stroke="var(--muted-foreground)"
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={11}
+                    width={58}
+                    tickMargin={8}
+                    stroke="var(--muted-foreground)"
+                    tickFormatter={(value) => Number(value).toFixed(2)}
+                  />
+                  <Tooltip
+                    cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }}
+                    contentStyle={{
+                      borderRadius: 10,
+                      border: "1px solid var(--border)",
+                      background: "var(--popover)",
+                      color: "var(--popover-foreground)",
+                      boxShadow: "0 10px 30px -12px rgba(0,0,0,.35)",
+                    }}
+                    formatter={(value) => [
+                      `${Number(value).toFixed(3)} ${energyUnit === "kwh" ? "kWh" : "MJ"}`,
+                      "Energi",
+                    ]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="energy"
+                    stroke="var(--chart-4)"
+                    fill="url(#adminEnergyGradient)"
+                    strokeWidth={2.5}
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 2, fill: "var(--background)" }}
+                    isAnimationActive
+                    animationDuration={900}
+                    animationEasing="ease-out"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden rounded-[2rem] border-border/70 bg-card/75 shadow-[0_20px_60px_-42px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-          <CardHeader className="border-b border-border/60 pb-5">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">Connectivity</p>
-            <CardTitle className="mt-1 text-xl">Status perangkat</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">Distribusi device online dan offline</p>
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b bg-muted/20">
+            <CardTitle className="text-base">Status perangkat</CardTitle>
+            <CardDescription>Distribusi device online dan offline</CardDescription>
           </CardHeader>
 
-          <CardContent className="flex min-h-[360px] flex-col items-center justify-center p-5">
-            <div className="relative h-[220px] w-full max-w-[280px]">
+          <CardContent className="flex min-h-[350px] flex-col items-center justify-center gap-4 p-5">
+            <div className="relative h-[220px] w-full max-w-[260px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={pieData}
                     dataKey="value"
                     nameKey="name"
-                    innerRadius={64}
+                    innerRadius={66}
                     outerRadius={90}
-                    paddingAngle={5}
-                    cornerRadius={10}
+                    paddingAngle={4}
+                    cornerRadius={8}
                     stroke="none"
+                    isAnimationActive
+                    animationDuration={800}
                   >
-                    <Cell fill="#06b6d4" />
-                    <Cell fill="#f43f5e" />
+                    <Cell fill="var(--chart-2)" />
+                    <Cell fill="var(--chart-5)" />
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      borderRadius: 14,
-                      border: "1px solid rgba(148,163,184,.2)",
-                      background: "rgba(30,27,75,.94)",
-                      color: "white",
+                      borderRadius: 10,
+                      border: "1px solid var(--border)",
+                      background: "var(--popover)",
+                      color: "var(--popover-foreground)",
+                      boxShadow: "0 10px 30px -12px rgba(0,0,0,.35)",
                     }}
                   />
                 </PieChart>
@@ -369,13 +388,13 @@ export default function AdminDashboardOverview() {
 
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <p className="text-3xl font-black tracking-tight">{totalDevices}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Devices</p>
+                  <p className="text-3xl font-semibold tracking-tight tabular-nums">{totalDevices}</p>
+                  <p className="text-xs text-muted-foreground">Total device</p>
                 </div>
               </div>
             </div>
 
-            <div className="grid w-full grid-cols-2 gap-3">
+            <div className="grid w-full grid-cols-2 gap-2">
               <StatusLegend label="Online" value={onlineDevices} dotClassName="bg-cyan-500" />
               <StatusLegend label="Offline" value={offlineDevices} dotClassName="bg-rose-500" />
             </div>
@@ -403,60 +422,38 @@ function MetricCard({
   helper: string;
   icon: LucideIcon;
   tone: "violet" | "indigo" | "cyan" | "rose";
-  extra?: React.ReactNode;
+  extra?: ReactNode;
 }) {
   const toneClasses = {
-    violet: {
-      icon: "bg-violet-500/12 text-violet-600 dark:text-violet-300",
-      glow: "bg-violet-400/10",
-    },
-    indigo: {
-      icon: "bg-indigo-500/12 text-indigo-600 dark:text-indigo-300",
-      glow: "bg-indigo-400/10",
-    },
-    cyan: {
-      icon: "bg-cyan-500/12 text-cyan-600 dark:text-cyan-300",
-      glow: "bg-cyan-400/10",
-    },
-    rose: {
-      icon: "bg-rose-500/12 text-rose-600 dark:text-rose-300",
-      glow: "bg-rose-400/10",
-    },
+    violet: "text-violet-600 dark:text-violet-300",
+    indigo: "text-indigo-600 dark:text-indigo-300",
+    cyan: "text-cyan-600 dark:text-cyan-300",
+    rose: "text-rose-600 dark:text-rose-300",
   }[tone];
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 16 }}
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * 0.05 }}
-      whileHover={{ y: -4 }}
-      className="group relative overflow-hidden rounded-[1.75rem] border border-border/70 bg-card/75 p-5 shadow-[0_16px_50px_-34px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all hover:border-primary/20"
+      transition={{ duration: 0.3, delay: index * 0.04 }}
     >
-      <div className={`pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full blur-2xl ${toneClasses.glow}`} />
-
-      <div className="relative flex items-start justify-between gap-3">
-        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${toneClasses.icon}`}>
-          <Icon className="h-5 w-5" />
-        </div>
-        {extra}
-      </div>
-
-      <div className="relative mt-5">
-        <p className="text-sm font-semibold text-muted-foreground">{title}</p>
-        <div className="mt-1 flex items-baseline gap-2">
-          <motion.span
-            key={String(value)}
-            initial={{ opacity: 0.5, y: 3 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-3xl font-black tracking-tight"
-          >
-            {value}
-          </motion.span>
-          {unit && <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{unit}</span>}
-        </div>
-        <p className="mt-3 text-xs leading-5 text-muted-foreground/80">{helper}</p>
-      </div>
-    </motion.article>
+      <Card className="h-full transition-colors hover:border-primary/20">
+        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+          <div className={`flex h-9 w-9 items-center justify-center rounded-lg border bg-muted/30 ${toneClasses}`}>
+            <Icon className="h-4 w-4" />
+          </div>
+          {extra}
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">{title}</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-semibold tracking-tight tabular-nums">{value}</span>
+            {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
+          </div>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">{helper}</p>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -470,12 +467,12 @@ function StatusLegend({
   dotClassName: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-background/55 p-3">
-      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-        <span className={`h-2.5 w-2.5 rounded-full ${dotClassName}`} />
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span className={`h-2 w-2 rounded-full ${dotClassName}`} />
         {label}
       </div>
-      <p className="mt-1 text-xl font-black">{value}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
     </div>
   );
 }
