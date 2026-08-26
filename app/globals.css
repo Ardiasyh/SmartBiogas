@@ -140,3 +140,48 @@
     background: color-mix(in oklab, var(--primary) 30%, transparent);
   }
 }
+
+/* Legacy color bridge: komponen lama yang masih memakai green/emerald
+   otomatis mengikuti palet aurora tanpa perlu mengubah logika komponennya. */
+@layer utilities {
+  .text-green-600,
+  .text-emerald-600,
+  .text-emerald-700 {
+    color: oklch(0.58 0.16 225) !important;
+  }
+
+  .dark .dark\:text-emerald-300,
+  .dark .dark\:text-emerald-400 {
+    color: oklch(0.78 0.13 220) !important;
+  }
+
+  .bg-green-500,
+  .bg-emerald-400,
+  .bg-emerald-500 {
+    background-color: oklch(0.69 0.15 220) !important;
+  }
+
+  .bg-green-500\/10,
+  .bg-emerald-500\/10,
+  .bg-emerald-500\/12 {
+    background-color: color-mix(in oklab, oklch(0.69 0.15 220) 12%, transparent) !important;
+  }
+
+  .border-emerald-500\/20 {
+    border-color: color-mix(in oklab, oklch(0.69 0.15 220) 22%, transparent) !important;
+  }
+}
+
+/* Recharts lama kadang masih menyimpan warna hijau sebagai atribut SVG inline. */
+svg [stroke="#16a34a"],
+svg [stroke="#22c55e"] {
+  stroke: #8b5cf6 !important;
+}
+
+svg stop[stop-color="#22c55e"] {
+  stop-color: #8b5cf6 !important;
+}
+
+svg [fill="#22c55e"] {
+  fill: #06b6d4 !important;
+}
