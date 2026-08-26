@@ -202,12 +202,13 @@ export default function AdminDashboardOverview() {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-[2rem] border border-primary/10 bg-card/75 p-6 shadow-[0_20px_70px_-40px_rgba(22,163,74,0.4)] backdrop-blur-xl"
+        className="relative overflow-hidden rounded-[2rem] border border-indigo-500/10 bg-card/75 p-6 shadow-[0_20px_70px_-40px_rgba(79,70,229,0.32)] backdrop-blur-xl"
       >
-        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-[-5rem] left-1/3 h-40 w-40 rounded-full bg-violet-500/8 blur-3xl" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/8 px-3 py-1.5 text-xs font-bold text-primary">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-500/15 bg-indigo-500/8 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-300">
               <Activity className="h-3.5 w-3.5" />
               Live system overview
             </div>
@@ -217,10 +218,10 @@ export default function AdminDashboardOverview() {
             </p>
           </div>
 
-          <div className="flex w-fit items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-emerald-700 dark:text-emerald-300">
+          <div className="flex w-fit items-center gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-cyan-700 dark:text-cyan-300">
             <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-60" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-cyan-500" />
             </span>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">System health</p>
@@ -238,7 +239,7 @@ export default function AdminDashboardOverview() {
           unit={energyUnit === "kwh" ? "kWh" : "MJ"}
           helper="Akumulasi nilai realtime seluruh device"
           icon={Zap}
-          tone="emerald"
+          tone="violet"
           extra={
             <select
               value={energyUnit}
@@ -256,7 +257,7 @@ export default function AdminDashboardOverview() {
           value={activeUsers}
           helper="User dengan device terdaftar"
           icon={Users}
-          tone="violet"
+          tone="indigo"
         />
         <MetricCard
           index={2}
@@ -264,7 +265,7 @@ export default function AdminDashboardOverview() {
           value={onlineDevices}
           helper="Update diterima dalam 15 detik"
           icon={Wifi}
-          tone="sky"
+          tone="cyan"
         />
         <MetricCard
           index={3}
@@ -280,11 +281,11 @@ export default function AdminDashboardOverview() {
         <Card className="overflow-hidden rounded-[2rem] border-border/70 bg-card/75 shadow-[0_20px_60px_-42px_rgba(0,0,0,0.5)] backdrop-blur-xl">
           <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/60 pb-5">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">Energy analytics</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-300">Energy analytics</p>
               <CardTitle className="mt-1 text-xl">Trend energi terbaru</CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">20 data history terakhir dari seluruh perangkat</p>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-300">
               <BatteryCharging className="h-5 w-5" />
             </div>
           </CardHeader>
@@ -294,31 +295,21 @@ export default function AdminDashboardOverview() {
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -12, bottom: 0 }}>
                 <defs>
                   <linearGradient id="adminEnergyGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.42} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.44} />
+                    <stop offset="55%" stopColor="#6366f1" stopOpacity={0.16} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
 
                 <CartesianGrid strokeDasharray="4 4" vertical={false} opacity={0.08} />
-                <XAxis
-                  dataKey="time"
-                  tickLine={false}
-                  axisLine={false}
-                  fontSize={11}
-                  minTickGap={24}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  fontSize={11}
-                  width={58}
-                />
+                <XAxis dataKey="time" tickLine={false} axisLine={false} fontSize={11} minTickGap={24} />
+                <YAxis tickLine={false} axisLine={false} fontSize={11} width={58} />
                 <Tooltip
                   cursor={{ strokeDasharray: "4 4", strokeOpacity: 0.25 }}
                   contentStyle={{
                     borderRadius: 16,
                     border: "1px solid rgba(148,163,184,.2)",
-                    background: "rgba(15,23,42,.92)",
+                    background: "rgba(30,27,75,.94)",
                     color: "white",
                     boxShadow: "0 18px 50px -20px rgba(0,0,0,.6)",
                   }}
@@ -330,7 +321,7 @@ export default function AdminDashboardOverview() {
                 <Area
                   type="monotone"
                   dataKey="energy"
-                  stroke="#22c55e"
+                  stroke="#8b5cf6"
                   fill="url(#adminEnergyGradient)"
                   strokeWidth={3}
                   dot={false}
@@ -362,14 +353,14 @@ export default function AdminDashboardOverview() {
                     cornerRadius={10}
                     stroke="none"
                   >
-                    <Cell fill="#22c55e" />
-                    <Cell fill="#ef4444" />
+                    <Cell fill="#06b6d4" />
+                    <Cell fill="#f43f5e" />
                   </Pie>
                   <Tooltip
                     contentStyle={{
                       borderRadius: 14,
                       border: "1px solid rgba(148,163,184,.2)",
-                      background: "rgba(15,23,42,.92)",
+                      background: "rgba(30,27,75,.94)",
                       color: "white",
                     }}
                   />
@@ -385,8 +376,8 @@ export default function AdminDashboardOverview() {
             </div>
 
             <div className="grid w-full grid-cols-2 gap-3">
-              <StatusLegend label="Online" value={onlineDevices} dotClassName="bg-emerald-500" />
-              <StatusLegend label="Offline" value={offlineDevices} dotClassName="bg-red-500" />
+              <StatusLegend label="Online" value={onlineDevices} dotClassName="bg-cyan-500" />
+              <StatusLegend label="Offline" value={offlineDevices} dotClassName="bg-rose-500" />
             </div>
           </CardContent>
         </Card>
@@ -411,24 +402,24 @@ function MetricCard({
   unit?: string;
   helper: string;
   icon: LucideIcon;
-  tone: "emerald" | "violet" | "sky" | "rose";
+  tone: "violet" | "indigo" | "cyan" | "rose";
   extra?: React.ReactNode;
 }) {
   const toneClasses = {
-    emerald: {
-      icon: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400",
-      glow: "bg-emerald-400/10",
-    },
     violet: {
-      icon: "bg-violet-500/12 text-violet-600 dark:text-violet-400",
+      icon: "bg-violet-500/12 text-violet-600 dark:text-violet-300",
       glow: "bg-violet-400/10",
     },
-    sky: {
-      icon: "bg-sky-500/12 text-sky-600 dark:text-sky-400",
-      glow: "bg-sky-400/10",
+    indigo: {
+      icon: "bg-indigo-500/12 text-indigo-600 dark:text-indigo-300",
+      glow: "bg-indigo-400/10",
+    },
+    cyan: {
+      icon: "bg-cyan-500/12 text-cyan-600 dark:text-cyan-300",
+      glow: "bg-cyan-400/10",
     },
     rose: {
-      icon: "bg-rose-500/12 text-rose-600 dark:text-rose-400",
+      icon: "bg-rose-500/12 text-rose-600 dark:text-rose-300",
       glow: "bg-rose-400/10",
     },
   }[tone];
@@ -439,7 +430,7 @@ function MetricCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.05 }}
       whileHover={{ y: -4 }}
-      className="group relative overflow-hidden rounded-[1.75rem] border border-border/70 bg-card/75 p-5 shadow-[0_16px_50px_-34px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+      className="group relative overflow-hidden rounded-[1.75rem] border border-border/70 bg-card/75 p-5 shadow-[0_16px_50px_-34px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all hover:border-primary/20"
     >
       <div className={`pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full blur-2xl ${toneClasses.glow}`} />
 
