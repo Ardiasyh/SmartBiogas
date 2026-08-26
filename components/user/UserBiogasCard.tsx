@@ -60,7 +60,7 @@ export default function UserBiogasCard({
     <section>
       <div className="mb-4 flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">
             Live telemetry
           </p>
           <h2 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
@@ -80,8 +80,8 @@ export default function UserBiogasCard({
           unit={flowLabel(flowUnit)}
           helper="Laju aliran biogas"
           icon={Wind}
-          iconClassName="bg-sky-500/12 text-sky-600 dark:text-sky-400"
-          glowClassName="bg-sky-400/10"
+          iconClassName="bg-cyan-500/12 text-cyan-600 dark:text-cyan-300"
+          glowClassName="bg-cyan-400/12"
           control={
             <MetricSelect
               value={flowUnit}
@@ -101,8 +101,8 @@ export default function UserBiogasCard({
           unit={pressureLabel(pressureUnit)}
           helper="Tekanan gas pada digester"
           icon={Gauge}
-          iconClassName="bg-amber-500/12 text-amber-600 dark:text-amber-400"
-          glowClassName="bg-amber-400/10"
+          iconClassName="bg-amber-500/12 text-amber-600 dark:text-amber-300"
+          glowClassName="bg-amber-400/12"
           control={
             <MetricSelect
               value={pressureUnit}
@@ -123,8 +123,8 @@ export default function UserBiogasCard({
           unit="°C"
           helper="Suhu gas terukur"
           icon={Thermometer}
-          iconClassName="bg-rose-500/12 text-rose-600 dark:text-rose-400"
-          glowClassName="bg-rose-400/10"
+          iconClassName="bg-rose-500/12 text-rose-600 dark:text-rose-300"
+          glowClassName="bg-rose-400/12"
         />
 
         <MetricCard
@@ -134,8 +134,8 @@ export default function UserBiogasCard({
           unit={energyLabel(energyUnit)}
           helper="Energi biogas terukur"
           icon={Zap}
-          iconClassName="bg-emerald-500/12 text-emerald-600 dark:text-emerald-400"
-          glowClassName="bg-emerald-400/10"
+          iconClassName="bg-violet-500/12 text-violet-600 dark:text-violet-300"
+          glowClassName="bg-violet-400/12"
           control={
             <MetricSelect
               value={energyUnit}
@@ -179,7 +179,7 @@ function MetricCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.06 }}
       whileHover={{ y: -4 }}
-      className="group relative overflow-hidden rounded-[1.75rem] border border-border/70 bg-card/75 p-5 shadow-[0_16px_50px_-32px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_22px_65px_-32px_rgba(0,0,0,0.5)]"
+      className="group relative overflow-hidden rounded-[1.75rem] border border-border/70 bg-card/75 p-5 shadow-[0_16px_50px_-32px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-300 hover:border-primary/20 hover:shadow-[0_22px_65px_-32px_rgba(79,70,229,0.26)]"
     >
       <div className={`pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full blur-2xl ${glowClassName}`} />
 
