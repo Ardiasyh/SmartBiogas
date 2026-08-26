@@ -4,18 +4,20 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
-import { motion } from "framer-motion"
 import {
+  ChevronRight,
+  Laptop,
   Leaf,
   LogOut,
-  Sun,
   Moon,
-  Laptop,
-  ChevronRight,
+  Sun,
   type LucideIcon,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 
 type MenuItem = {
   label: string
@@ -35,10 +37,7 @@ export default function Sidebar({
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true)
-  }, [])
+  useEffect(() => setMounted(true), [])
 
   const logout = () => {
     document.cookie = "token=; Max-Age=0; path=/"
@@ -46,111 +45,105 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border/70 bg-sidebar/88 text-sidebar-foreground backdrop-blur-2xl">
-      <div className="border-b border-border/60 px-5 pb-5 pt-6">
+    <aside className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
+      <div className="px-4 py-5">
         <div className="flex items-center gap-3">
-          <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-primary to-violet-500 text-white shadow-lg shadow-indigo-500/20">
-            <Leaf className="h-5 w-5" />
-            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-sidebar bg-cyan-400" />
-          </div>
-
-          <div className="min-w-0">
-            <p className="truncate text-base font-black tracking-tight">Smart Biogas</p>
-            <p className="truncate text-xs font-medium text-muted-foreground">{title}</p>
-          </div>
-        </div>
-
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-indigo-500/10 bg-gradient-to-r from-indigo-500/7 via-violet-500/5 to-cyan-500/7 px-3 py-2.5">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-60" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-500" />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <Leaf className="h-4 w-4" />
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Monitoring
-            </p>
-            <p className="truncate text-xs font-semibold text-foreground">Realtime system active</p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">Smart Biogas</p>
+            <p className="truncate text-xs text-muted-foreground">{title}</p>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-5">
-        <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/80">
-          Navigation
-        </p>
+      <Separator />
 
-        {menu.map((item, index) => {
-          const active =
-            pathname === item.href ||
-            (item.href !== "/" && pathname.startsWith(`${item.href}/`))
-          const Icon = item.icon
+      <div className="px-4 py-4">
+        <Badge variant="outline" className="w-full justify-start gap-2 py-1.5 font-normal">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-500" />
+          </span>
+          Realtime system active
+        </Badge>
+      </div>
 
-          return (
-            <motion.div
-              key={item.href}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.25, delay: index * 0.04 }}
-            >
+      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+        <p className="px-2 pb-2 text-xs font-medium text-muted-foreground">Navigation</p>
+
+        <div className="space-y-1">
+          {menu.map((item) => {
+            const active =
+              pathname === item.href ||
+              (item.href !== "/" && pathname.startsWith(`${item.href}/`))
+            const Icon = item.icon
+
+            return (
               <Link
+                key={item.href}
                 href={item.href}
                 className={cn(
-                  "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200",
+                  "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   active
-                    ? "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/20"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 )}
               >
-                <span
-                  className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all duration-200",
-                    active
-                      ? "bg-white/15 text-white"
-                      : "bg-muted/70 text-muted-foreground group-hover:bg-background group-hover:text-primary",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                </span>
-
+                <Icon className={cn("h-4 w-4", active && "text-primary")} />
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
-
                 <ChevronRight
                   className={cn(
-                    "h-4 w-4 transition-all duration-200",
-                    active
-                      ? "translate-x-0 opacity-90"
-                      : "-translate-x-1 opacity-0 group-hover:translate-x-0 group-hover:opacity-70",
+                    "h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-60",
+                    active && "opacity-60",
                   )}
                 />
               </Link>
-            </motion.div>
-          )
-        })}
+            )
+          })}
+        </div>
       </nav>
 
-      <div className="border-t border-border/60 p-3">
-        <div className="rounded-2xl border border-border/70 bg-background/60 p-2 shadow-sm">
-          <div className="mb-2 flex items-center justify-between px-2 pt-1">
-            <span className="text-xs font-medium text-muted-foreground">Appearance</span>
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Theme</span>
-          </div>
+      <Separator />
+
+      <div className="space-y-3 p-3">
+        <div className="rounded-lg border bg-background/60 p-2">
+          <p className="px-1 pb-2 text-xs font-medium text-muted-foreground">Appearance</p>
 
           {mounted && (
-            <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted/60 p-1">
-              <ThemeButton active={theme === "light"} label="Light" onClick={() => setTheme("light")} icon={Sun} />
-              <ThemeButton active={theme === "dark"} label="Dark" onClick={() => setTheme("dark")} icon={Moon} />
-              <ThemeButton active={theme === "system"} label="Auto" onClick={() => setTheme("system")} icon={Laptop} />
+            <div className="grid grid-cols-3 gap-1">
+              <ThemeButton
+                active={theme === "light"}
+                icon={Sun}
+                label="Light"
+                onClick={() => setTheme("light")}
+              />
+              <ThemeButton
+                active={theme === "dark"}
+                icon={Moon}
+                label="Dark"
+                onClick={() => setTheme("dark")}
+              />
+              <ThemeButton
+                active={theme === "system"}
+                icon={Laptop}
+                label="Auto"
+                onClick={() => setTheme("system")}
+              />
             </div>
           )}
-
-          <button
-            onClick={logout}
-            className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-500/10 dark:text-rose-400"
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
-          </button>
         </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={logout}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          Logout
+        </Button>
       </div>
     </aside>
   )
@@ -158,25 +151,25 @@ export default function Sidebar({
 
 function ThemeButton({
   active,
+  icon: Icon,
   label,
   onClick,
-  icon: Icon,
 }: {
   active: boolean
+  icon: LucideIcon
   label: string
   onClick: () => void
-  icon: LucideIcon
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-medium transition-all",
+        "flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs transition-colors",
         active
-          ? "bg-background text-foreground shadow-sm ring-1 ring-indigo-500/10"
-          : "text-muted-foreground hover:text-foreground",
+          ? "bg-secondary text-secondary-foreground"
+          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
       )}
-      aria-label={`${label} mode`}
       title={`${label} mode`}
     >
       <Icon className="h-3.5 w-3.5" />
