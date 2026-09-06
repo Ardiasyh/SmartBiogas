@@ -92,8 +92,8 @@ export async function PATCH(request: Request) {
     if (installationComplete) {
       updates.deviceId = deviceId
       updates.locationName = locationName
-      updates.lat = lat
-      updates.lng = lng
+      updates.lat = lat!
+      updates.lng = lng!
     }
 
     if (activate) updates.status = "active"
