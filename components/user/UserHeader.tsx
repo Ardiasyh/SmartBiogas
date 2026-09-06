@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { onAuthStateChanged } from "firebase/auth"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, onSnapshot } from "firebase/firestore"
 import { Activity, Sparkles } from "lucide-react"
 
 import { auth, db } from "@/lib/firebase"
@@ -24,25 +24,37 @@ export default function UserHeader({ status }: Props) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let stopProfile: (() => void) | null = null
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      stopProfile?.()
+      stopProfile = null
+
       if (!user) {
         setUsername("")
         setLoading(false)
         return
       }
 
-      try {
-        const snap = await getDoc(doc(db, "users", user.uid))
-        setUsername(snap.exists() ? snap.data().fullname || "User" : "User")
-      } catch (error) {
-        console.error("Gagal mengambil data user:", error)
-        setUsername("User")
-      } finally {
-        setLoading(false)
-      }
+      setLoading(true)
+      stopProfile = onSnapshot(
+        doc(db, "users", user.uid),
+        (snapshot) => {
+          setUsername(snapshot.exists() ? snapshot.data().fullname || "User" : "User")
+          setLoading(false)
+        },
+        (error) => {
+          console.error("Gagal mengambil data user:", error)
+          setUsername("User")
+          setLoading(false)
+        },
+      )
     })
 
-    return () => unsubscribe()
+    return () => {
+      unsubscribeAuth()
+      stopProfile?.()
+    }
   }, [])
 
   const online = useMemo(() => status?.toLowerCase() === "online", [status])
