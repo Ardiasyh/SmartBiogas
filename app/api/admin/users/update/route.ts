@@ -8,6 +8,16 @@ function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
+async function isAuthorizedAdmin() {
+  const session = (await cookies()).get(SESSION_COOKIE)?.value
+  if (!session) return false
+
+  const requester = await sessionAccount(session)
+  return Boolean(
+    requester && requester.access.role === "admin" && requester.access.allowed,
+  )
+}
+
 type UpdateUserBody = {
   uid?: string
   fullname?: string
@@ -19,15 +29,52 @@ type UpdateUserBody = {
   lng?: number | null
 }
 
-export async function PATCH(request: Request) {
+export async function GET(request: Request) {
   try {
-    const session = (await cookies()).get(SESSION_COOKIE)?.value
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!(await isAuthorizedAdmin())) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const requester = await sessionAccount(session)
-    if (!requester || requester.access.role !== "admin" || !requester.access.allowed) {
+    const uid = new URL(request.url).searchParams.get("uid")?.trim() ?? ""
+    if (!uid) {
+      return NextResponse.json({ error: "UID pengguna wajib diisi." }, { status: 400 })
+    }
+
+    const [authUser, profileSnap] = await Promise.all([
+      adminAuth().getUser(uid),
+      adminDb().collection("users").doc(uid).get(),
+    ])
+
+    if (!profileSnap.exists) {
+      return NextResponse.json({ error: "Profil pengguna tidak ditemukan." }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      uid,
+      email: authUser.email ?? profileSnap.data()?.email ?? "",
+      emailVerified: authUser.emailVerified,
+    })
+  } catch (error: unknown) {
+    const code =
+      typeof error === "object" && error && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : ""
+
+    if (code.includes("user-not-found")) {
+      return NextResponse.json({ error: "Akun Firebase tidak ditemukan." }, { status: 404 })
+    }
+
+    console.error("Gagal membaca status email pengguna:", error)
+    return NextResponse.json(
+      { error: "Gagal membaca status email pengguna." },
+      { status: 500 },
+    )
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    if (!(await isAuthorizedAdmin())) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
