@@ -166,6 +166,8 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
   const [activeUser, setActiveUser] = useState<UserData | null>(null);
   const [fullnameInput, setFullnameInput] = useState("");
   const [emailInput, setEmailInput] = useState("");
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
+  const [emailStatusLoading, setEmailStatusLoading] = useState(false);
   const [deviceIdInput, setDeviceIdInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
   const [lat, setLat] = useState<number | null>(null);
@@ -240,16 +242,39 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
   const emailChanged = Boolean(activeUser) && emailInput.trim() !== (activeUser?.email ?? "");
   const formValid = Boolean(fullnameInput.trim()) && validEmail(emailInput);
 
+  const loadAuthEmailStatus = async (user: UserData) => {
+    setEmailStatusLoading(true);
+    setEmailVerified(null);
+
+    try {
+      const response = await fetch(`/api/admin/users/update?uid=${encodeURIComponent(user.id)}`);
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "Gagal membaca status email.");
+
+      if (typeof body.email === "string" && body.email) {
+        setEmailInput(body.email);
+      }
+      setEmailVerified(Boolean(body.emailVerified));
+    } catch (error) {
+      console.error("Gagal membaca status email pengguna:", error);
+      toast.error(error instanceof Error ? error.message : "Gagal membaca status email pengguna.");
+    } finally {
+      setEmailStatusLoading(false);
+    }
+  };
+
   const openReview = (user: UserData) => {
     setActiveUser(user);
     setFullnameInput(user.fullname || "");
     setEmailInput(user.email || "");
+    setEmailVerified(null);
     setDeviceIdInput(user.deviceId || "");
     setLocationInput(user.locationName || "");
     setLat(user.lat ?? null);
     setLng(user.lng ?? null);
     setConfirmOpen(false);
     setOpen(true);
+    void loadAuthEmailStatus(user);
   };
 
   const saveUser = async ({ activate }: { activate: boolean }) => {
@@ -308,6 +333,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
       );
       setActiveUser(nextUser);
       setEmailInput(nextUser.email || email);
+      setEmailVerified(Boolean(body.emailVerified));
       setConfirmOpen(false);
       setOpen(false);
 
@@ -525,7 +551,25 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="user-email">Email login</Label>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="user-email">Email login</Label>
+                  <Badge
+                    variant="outline"
+                    className={
+                      emailStatusLoading
+                        ? "text-muted-foreground"
+                        : emailVerified
+                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                          : "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                    }
+                  >
+                    {emailStatusLoading
+                      ? "Memeriksa..."
+                      : emailVerified
+                        ? "Terverifikasi"
+                        : "Belum diverifikasi"}
+                  </Badge>
+                </div>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -540,7 +584,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
                 <p className={`text-xs ${emailChanged ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground"}`}>
                   {emailChanged
                     ? "Email login akan ikut diubah di Firebase Authentication. Status verifikasi email baru akan menjadi belum terverifikasi, sedangkan password tetap sama."
-                    : "Email ini digunakan untuk login. Perubahan email hanya dapat dilakukan administrator."}
+                    : "Status di atas dibaca langsung dari Firebase Authentication. Perubahan email hanya dapat dilakukan administrator."}
                 </p>
               </div>
 
@@ -671,6 +715,10 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
           <div className="space-y-3 rounded-lg border bg-muted/20 p-4 text-sm">
             <ConfirmationRow label="Nama" value={fullnameInput.trim() || "-"} />
             <ConfirmationRow label="Email login" value={emailInput.trim() || "-"} />
+            <ConfirmationRow
+              label="Verifikasi email"
+              value={emailChanged ? "Akan direset" : emailVerified ? "Terverifikasi" : "Belum diverifikasi"}
+            />
             <ConfirmationRow label="Device ID" value={deviceIdInput.trim() || "-"} mono />
             <ConfirmationRow label="Nama lokasi" value={locationInput.trim() || "-"} />
             <ConfirmationRow
