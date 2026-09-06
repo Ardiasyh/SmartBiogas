@@ -8,6 +8,7 @@ import { useMapEvents } from "react-leaflet";
 import {
   Activity,
   ArrowUpDown,
+  CheckCircle2,
   CircleHelp,
   ExternalLink,
   MapPin,
@@ -16,6 +17,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
+import { toast } from "sonner";
 
 import { db } from "@/lib/firebase";
 import { watchDeviceTelemetry } from "@/lib/device-telemetry";
@@ -43,9 +45,18 @@ import {
 
 import "leaflet/dist/leaflet.css";
 
-const MapContainer = dynamic(() => import("react-leaflet").then((module) => module.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import("react-leaflet").then((module) => module.TileLayer), { ssr: false });
-const Marker = dynamic(() => import("react-leaflet").then((module) => module.Marker), { ssr: false });
+const MapContainer = dynamic(
+  () => import("react-leaflet").then((module) => module.MapContainer),
+  { ssr: false },
+);
+const TileLayer = dynamic(
+  () => import("react-leaflet").then((module) => module.TileLayer),
+  { ssr: false },
+);
+const Marker = dynamic(
+  () => import("react-leaflet").then((module) => module.Marker),
+  { ssr: false },
+);
 
 function extractLatLngFromGoogleMaps(url: string) {
   const qMatch = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
@@ -75,7 +86,10 @@ type SortMode = "name" | "status" | "device";
 function DeviceStatus({ status }: { status: DeviceLiveStatus }) {
   if (status === "ONLINE") {
     return (
-      <Badge variant="outline" className="gap-1.5 border-cyan-500/20 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+      <Badge
+        variant="outline"
+        className="gap-1.5 border-cyan-500/20 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+      >
         <span className="relative flex h-1.5 w-1.5">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-60" />
           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-500" />
@@ -87,7 +101,10 @@ function DeviceStatus({ status }: { status: DeviceLiveStatus }) {
 
   if (status === "OFFLINE") {
     return (
-      <Badge variant="outline" className="gap-1.5 border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300">
+      <Badge
+        variant="outline"
+        className="gap-1.5 border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+      >
         <Power className="h-3 w-3" />
         Offline
       </Badge>
@@ -106,7 +123,10 @@ function AccountStatus({ status }: { status?: string }) {
   const active = status?.toLowerCase() === "active";
 
   return (
-    <Badge variant={active ? "secondary" : "outline"} className={active ? "bg-primary/10 text-primary" : "text-muted-foreground"}>
+    <Badge
+      variant={active ? "secondary" : "outline"}
+      className={active ? "bg-primary/10 text-primary" : "text-muted-foreground"}
+    >
       {active ? "Active" : status || "Pending"}
     </Badge>
   );
@@ -137,6 +157,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
   const [search, setSearch] = useState("");
 
   const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [activeUser, setActiveUser] = useState<UserData | null>(null);
   const [fullnameInput, setFullnameInput] = useState("");
   const [deviceIdInput, setDeviceIdInput] = useState("");
@@ -147,14 +168,23 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
 
   useEffect(() => {
     getDocs(collection(db, "users")).then((snapshot) => {
-      setUsers(snapshot.docs.map((document) => ({ id: document.id, ...document.data() })) as UserData[]);
+      setUsers(
+        snapshot.docs.map((document) => ({ id: document.id, ...document.data() })) as UserData[],
+      );
     });
   }, []);
 
   useEffect(() => {
     const telemetry = new Map<string, Telemetry | null>();
-    const deviceIds = [...new Set(users.map((user) => user.deviceId).filter((id): id is string => Boolean(id)))];
-    const refresh = () => setDeviceStatus(Object.fromEntries(deviceIds.map((id) => [id, telemetryStatus(telemetry.get(id) ?? null)])));
+    const deviceIds = [
+      ...new Set(users.map((user) => user.deviceId).filter((id): id is string => Boolean(id))),
+    ];
+    const refresh = () =>
+      setDeviceStatus(
+        Object.fromEntries(
+          deviceIds.map((id) => [id, telemetryStatus(telemetry.get(id) ?? null)]),
+        ),
+      );
 
     const stops = deviceIds.map((deviceId) =>
       watchDeviceTelemetry(deviceId, (value) => {
@@ -198,6 +228,10 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
     return list;
   }, [users, filterProvince, sortBy, deviceStatus, search]);
 
+  const accountActive = activeUser?.status?.toLowerCase() === "active";
+  const installationComplete =
+    deviceIdInput.trim().length > 0 && lat !== null && lng !== null;
+
   const openReview = (user: UserData) => {
     setActiveUser(user);
     setFullnameInput(user.fullname || "");
@@ -205,40 +239,44 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
     setLocationInput(user.locationName || "");
     setLat(user.lat ?? null);
     setLng(user.lng ?? null);
+    setConfirmOpen(false);
     setOpen(true);
   };
 
-  const handleApprove = async () => {
+  const saveUser = async ({ activate }: { activate: boolean }) => {
     if (!activeUser || saving) return;
 
     const fullname = fullnameInput.trim();
-    if (!fullname) return;
+    if (!fullname) {
+      toast.error("Nama pengguna tidak boleh kosong.");
+      return;
+    }
 
-    const hasInstallationSetup =
-      deviceIdInput.trim().length > 0 && lat !== null && lng !== null;
-
-    const nextUser: UserData = {
-      ...activeUser,
-      fullname,
-      ...(hasInstallationSetup
-        ? {
-            status: "active",
-            deviceId: deviceIdInput.trim(),
-            locationName: locationInput.trim(),
-            lat,
-            lng,
-          }
-        : {}),
-    };
+    if (activate && !installationComplete) {
+      toast.error("Lengkapi Device ID dan titik lokasi sebelum mengaktifkan user.");
+      return;
+    }
 
     const updates: Record<string, string | number> = { fullname };
+    const nextUser: UserData = { ...activeUser, fullname };
 
-    if (hasInstallationSetup) {
+    if (activate || accountActive) {
+      if (installationComplete) {
+        updates.deviceId = deviceIdInput.trim();
+        updates.locationName = locationInput.trim();
+        updates.lat = lat!;
+        updates.lng = lng!;
+
+        nextUser.deviceId = deviceIdInput.trim();
+        nextUser.locationName = locationInput.trim();
+        nextUser.lat = lat!;
+        nextUser.lng = lng!;
+      }
+    }
+
+    if (activate) {
       updates.status = "active";
-      updates.deviceId = deviceIdInput.trim();
-      updates.locationName = locationInput.trim();
-      updates.lat = lat;
-      updates.lng = lng;
+      nextUser.status = "active";
     }
 
     setSaving(true);
@@ -248,12 +286,39 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
       setUsers((current) =>
         current.map((user) => (user.id === activeUser.id ? nextUser : user)),
       );
+      setConfirmOpen(false);
       setOpen(false);
+      toast.success(
+        activate
+          ? `${fullname} berhasil dikonfirmasi dan diaktifkan.`
+          : "Perubahan pengguna berhasil disimpan.",
+      );
     } catch (error) {
       console.error("Gagal menyimpan perubahan pengguna:", error);
+      toast.error("Perubahan pengguna gagal disimpan.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const openNewUserConfirmation = () => {
+    if (!fullnameInput.trim()) {
+      toast.error("Nama pengguna tidak boleh kosong.");
+      return;
+    }
+
+    if (!installationComplete) {
+      toast.error("Lengkapi Device ID dan titik lokasi sebelum konfirmasi user baru.");
+      return;
+    }
+
+    setOpen(false);
+    setConfirmOpen(true);
+  };
+
+  const backToReview = () => {
+    setConfirmOpen(false);
+    setOpen(true);
   };
 
   return (
@@ -313,9 +378,14 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
               </TableRow>
             ) : (
               processedUsers.map((user) => {
-                const liveStatus = user.deviceId ? deviceStatus[user.deviceId] ?? "UNKNOWN" : "UNKNOWN";
-                const initial = (user.fullname || user.email || "U").trim().charAt(0).toUpperCase();
-                const accountActive = user.status?.toLowerCase() === "active";
+                const liveStatus = user.deviceId
+                  ? deviceStatus[user.deviceId] ?? "UNKNOWN"
+                  : "UNKNOWN";
+                const initial = (user.fullname || user.email || "U")
+                  .trim()
+                  .charAt(0)
+                  .toUpperCase();
+                const isActive = user.status?.toLowerCase() === "active";
 
                 return (
                   <TableRow key={user.id} className="group transition-colors hover:bg-muted/30">
@@ -326,7 +396,9 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
                         </div>
                         <div className="min-w-0">
                           <p className="truncate font-medium">{user.fullname || "Tanpa nama"}</p>
-                          <p className="truncate text-xs text-muted-foreground">{user.email || "Email belum tersedia"}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {user.email || "Email belum tersedia"}
+                          </p>
                         </div>
                       </div>
                     </TableCell>
@@ -340,7 +412,9 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
 
                     <TableCell>
                       {user.deviceId ? (
-                        <Badge variant="outline" className="font-mono text-[11px]">{user.deviceId}</Badge>
+                        <Badge variant="outline" className="font-mono text-[11px]">
+                          {user.deviceId}
+                        </Badge>
                       ) : (
                         <span className="text-sm text-muted-foreground">Belum ditetapkan</span>
                       )}
@@ -349,14 +423,16 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
                     <TableCell>
                       <div className="flex max-w-[220px] items-start gap-2 text-sm">
                         <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span className="line-clamp-2 text-muted-foreground">{user.locationName || user.province || "Lokasi belum diatur"}</span>
+                        <span className="line-clamp-2 text-muted-foreground">
+                          {user.locationName || user.province || "Lokasi belum diatur"}
+                        </span>
                       </div>
                     </TableCell>
 
                     <TableCell>
                       <div className="flex justify-end gap-2">
                         <Button size="sm" variant="outline" onClick={() => openReview(user)}>
-                          {accountActive ? "Edit" : "Review"}
+                          {isActive ? "Edit" : "Review"}
                         </Button>
                         {user.deviceId && (
                           <Button size="sm" variant="ghost" asChild>
@@ -388,9 +464,11 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <DialogHeader className="shrink-0 border-b px-6 pb-4 pt-6 pr-12">
-            <DialogTitle>Edit pengguna & perangkat</DialogTitle>
+            <DialogTitle>{accountActive ? "Edit pengguna & perangkat" : "Review user baru"}</DialogTitle>
             <DialogDescription>
-              Nama pengguna dapat diperbarui kapan saja. Device ID dan titik instalasi tetap dikelola administrator.
+              {accountActive
+                ? "Perbarui nama, Device ID, dan titik instalasi pengguna."
+                : "Periksa data user baru, tetapkan Device ID dan lokasi, lalu lakukan konfirmasi sebelum akun diaktifkan."}
             </DialogDescription>
           </DialogHeader>
 
@@ -406,7 +484,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
                   autoComplete="off"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Perubahan nama akan digunakan pada daftar user dan dashboard pengguna.
+                  Nama ini akan digunakan pada daftar user dan dashboard pengguna.
                 </p>
               </div>
 
@@ -420,11 +498,21 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="device-id">Device ID</Label>
-                  <Input id="device-id" value={deviceIdInput} onChange={(event) => setDeviceIdInput(event.target.value)} placeholder="Contoh: 001" />
+                  <Input
+                    id="device-id"
+                    value={deviceIdInput}
+                    onChange={(event) => setDeviceIdInput(event.target.value)}
+                    placeholder="Contoh: 001"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="location-name">Nama lokasi</Label>
-                  <Input id="location-name" value={locationInput} onChange={(event) => setLocationInput(event.target.value)} placeholder="Contoh: Digester Utama" />
+                  <Input
+                    id="location-name"
+                    value={locationInput}
+                    onChange={(event) => setLocationInput(event.target.value)}
+                    placeholder="Contoh: Digester Utama"
+                  />
                 </div>
               </div>
             </div>
@@ -441,7 +529,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
                     setLat(result.lat);
                     setLng(result.lng);
                   } else {
-                    alert("Link Google Maps tidak valid");
+                    toast.error("Link Google Maps tidak valid.");
                   }
                 }}
               />
@@ -449,36 +537,138 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
 
             <div className="overflow-hidden rounded-lg border">
               <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Pilih lokasi instalasi</span>
-                <span>{lat !== null && lng !== null ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : "Belum dipilih"}</span>
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" /> Pilih lokasi instalasi
+                </span>
+                <span>
+                  {lat !== null && lng !== null
+                    ? `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+                    : "Belum dipilih"}
+                </span>
               </div>
               <div className="h-[220px] sm:h-[240px]">
-                <MapContainer center={[lat ?? -2.5, lng ?? 118]} zoom={lat !== null ? 15 : 5} className="h-full w-full">
+                <MapContainer
+                  center={[lat ?? -2.5, lng ?? 118]}
+                  zoom={lat !== null ? 15 : 5}
+                  className="h-full w-full"
+                >
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  <LocationPicker lat={lat} lng={lng} onPick={(nextLat, nextLng) => {
-                    setLat(nextLat);
-                    setLng(nextLng);
-                  }} />
+                  <LocationPicker
+                    lat={lat}
+                    lng={lng}
+                    onPick={(nextLat, nextLng) => {
+                      setLat(nextLat);
+                      setLng(nextLng);
+                    }}
+                  />
                 </MapContainer>
               </div>
             </div>
 
-            {!deviceIdInput.trim() || lat === null || lng === null ? (
-              <p className="text-xs text-muted-foreground">
-                Tanpa Device ID atau koordinat, perubahan nama tetap bisa disimpan tanpa mengaktifkan akun.
-              </p>
+            {!accountActive && !installationComplete ? (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs leading-5 text-amber-700 dark:text-amber-300">
+                Untuk mengaktifkan user baru, Device ID dan titik koordinat harus sudah ditentukan. Nama tetap dapat disimpan sebagai draft.
+              </div>
             ) : null}
           </div>
 
-          <div className="flex shrink-0 justify-end gap-2 border-t bg-background px-6 py-4">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Batal</Button>
-            <Button onClick={handleApprove} disabled={saving || !fullnameInput.trim()}>
-              <Activity className="mr-2 h-4 w-4" />
-              {saving ? "Menyimpan..." : "Simpan perubahan"}
+          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t bg-background px-6 py-4">
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+              Batal
+            </Button>
+
+            {!accountActive ? (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => saveUser({ activate: false })}
+                  disabled={saving || !fullnameInput.trim()}
+                >
+                  {saving ? "Menyimpan..." : "Simpan draft"}
+                </Button>
+                <Button
+                  onClick={openNewUserConfirmation}
+                  disabled={saving || !fullnameInput.trim() || !installationComplete}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Konfirmasi user
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => saveUser({ activate: false })}
+                disabled={saving || !fullnameInput.trim()}
+              >
+                <Activity className="mr-2 h-4 w-4" />
+                {saving ? "Menyimpan..." : "Simpan perubahan"}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <DialogTitle>Konfirmasi user baru?</DialogTitle>
+            <DialogDescription>
+              Periksa kembali data berikut. Setelah dikonfirmasi, status akun akan berubah menjadi Active.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 rounded-lg border bg-muted/20 p-4 text-sm">
+            <ConfirmationRow label="Nama" value={fullnameInput.trim() || "-"} />
+            <ConfirmationRow label="Email" value={activeUser?.email || "-"} />
+            <ConfirmationRow label="Device ID" value={deviceIdInput.trim() || "-"} mono />
+            <ConfirmationRow label="Nama lokasi" value={locationInput.trim() || "-"} />
+            <ConfirmationRow
+              label="Koordinat"
+              value={
+                lat !== null && lng !== null
+                  ? `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+                  : "-"
+              }
+              mono
+            />
+          </div>
+
+          <div className="rounded-lg border border-primary/15 bg-primary/5 px-4 py-3 text-xs leading-5 text-muted-foreground">
+            User akan mendapatkan akses sebagai akun aktif dengan Device ID dan lokasi instalasi di atas.
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={backToReview} disabled={saving}>
+              Kembali
+            </Button>
+            <Button onClick={() => saveUser({ activate: true })} disabled={saving}>
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              {saving ? "Mengaktifkan..." : "Ya, aktifkan user"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function ConfirmationRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`max-w-[65%] text-right font-medium ${mono ? "font-mono" : ""}`}>
+        {value}
+      </span>
     </div>
   );
 }
