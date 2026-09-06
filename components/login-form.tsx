@@ -92,12 +92,14 @@ export default function LoginForm({
       const cred = await signInWithEmailAndPassword(auth, email, password)
 
       if (!cred.user.emailVerified) {
-        toast.error("Email belum diverifikasi")
-        return
+        toast.warning(
+          "Email belum diverifikasi. Anda tetap dapat masuk, tetapi verifikasi email tetap disarankan.",
+        )
       }
 
       await afterLogin()
-    } catch {
+    } catch (error) {
+      console.error("Login gagal:", error)
       toast.error("Email atau password salah")
     } finally {
       setLoading(false)
