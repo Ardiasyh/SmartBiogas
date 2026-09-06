@@ -138,10 +138,12 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
 
   const [open, setOpen] = useState(false);
   const [activeUser, setActiveUser] = useState<UserData | null>(null);
+  const [fullnameInput, setFullnameInput] = useState("");
   const [deviceIdInput, setDeviceIdInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     getDocs(collection(db, "users")).then((snapshot) => {
@@ -198,6 +200,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
 
   const openReview = (user: UserData) => {
     setActiveUser(user);
+    setFullnameInput(user.fullname || "");
     setDeviceIdInput(user.deviceId || "");
     setLocationInput(user.locationName || "");
     setLat(user.lat ?? null);
@@ -206,27 +209,51 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
   };
 
   const handleApprove = async () => {
-    if (!activeUser || !deviceIdInput.trim() || lat === null || lng === null) return;
+    if (!activeUser || saving) return;
+
+    const fullname = fullnameInput.trim();
+    if (!fullname) return;
+
+    const hasInstallationSetup =
+      deviceIdInput.trim().length > 0 && lat !== null && lng !== null;
 
     const nextUser: UserData = {
       ...activeUser,
-      status: "active",
-      deviceId: deviceIdInput.trim(),
-      locationName: locationInput.trim(),
-      lat,
-      lng,
+      fullname,
+      ...(hasInstallationSetup
+        ? {
+            status: "active",
+            deviceId: deviceIdInput.trim(),
+            locationName: locationInput.trim(),
+            lat,
+            lng,
+          }
+        : {}),
     };
 
-    await updateDoc(doc(db, "users", activeUser.id), {
-      status: nextUser.status,
-      deviceId: nextUser.deviceId,
-      locationName: nextUser.locationName,
-      lat,
-      lng,
-    });
+    const updates: Record<string, string | number> = { fullname };
 
-    setUsers((current) => current.map((user) => (user.id === activeUser.id ? nextUser : user)));
-    setOpen(false);
+    if (hasInstallationSetup) {
+      updates.status = "active";
+      updates.deviceId = deviceIdInput.trim();
+      updates.locationName = locationInput.trim();
+      updates.lat = lat;
+      updates.lng = lng;
+    }
+
+    setSaving(true);
+
+    try {
+      await updateDoc(doc(db, "users", activeUser.id), updates);
+      setUsers((current) =>
+        current.map((user) => (user.id === activeUser.id ? nextUser : user)),
+      );
+      setOpen(false);
+    } catch (error) {
+      console.error("Gagal menyimpan perubahan pengguna:", error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -288,6 +315,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
               processedUsers.map((user) => {
                 const liveStatus = user.deviceId ? deviceStatus[user.deviceId] ?? "UNKNOWN" : "UNKNOWN";
                 const initial = (user.fullname || user.email || "U").trim().charAt(0).toUpperCase();
+                const accountActive = user.status?.toLowerCase() === "active";
 
                 return (
                   <TableRow key={user.id} className="group transition-colors hover:bg-muted/30">
@@ -328,7 +356,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
                     <TableCell>
                       <div className="flex justify-end gap-2">
                         <Button size="sm" variant="outline" onClick={() => openReview(user)}>
-                          Review
+                          {accountActive ? "Edit" : "Review"}
                         </Button>
                         {user.deviceId && (
                           <Button size="sm" variant="ghost" asChild>
@@ -360,20 +388,43 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Review pengguna & perangkat</DialogTitle>
+            <DialogTitle>Edit pengguna & perangkat</DialogTitle>
             <DialogDescription>
-              Atur device ID dan titik instalasi. Klik peta untuk memindahkan marker secara langsung.
+              Nama pengguna dapat diperbarui kapan saja. Device ID dan titik instalasi tetap dikelola administrator.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-2 sm:grid-cols-2">
+          <div className="grid gap-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="device-id">Device ID</Label>
-              <Input id="device-id" value={deviceIdInput} onChange={(event) => setDeviceIdInput(event.target.value)} placeholder="Contoh: 001" />
+              <Label htmlFor="fullname">Nama pengguna</Label>
+              <Input
+                id="fullname"
+                value={fullnameInput}
+                onChange={(event) => setFullnameInput(event.target.value)}
+                placeholder="Nama lengkap pengguna"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                Perubahan nama akan digunakan pada daftar user dan dashboard pengguna.
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="location-name">Nama lokasi</Label>
-              <Input id="location-name" value={locationInput} onChange={(event) => setLocationInput(event.target.value)} placeholder="Contoh: Digester Utama" />
+
+            {activeUser?.email ? (
+              <div className="space-y-2">
+                <Label htmlFor="user-email">Email</Label>
+                <Input id="user-email" value={activeUser.email} disabled />
+              </div>
+            ) : null}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="device-id">Device ID</Label>
+                <Input id="device-id" value={deviceIdInput} onChange={(event) => setDeviceIdInput(event.target.value)} placeholder="Contoh: 001" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="location-name">Nama lokasi</Label>
+                <Input id="location-name" value={locationInput} onChange={(event) => setLocationInput(event.target.value)} placeholder="Contoh: Digester Utama" />
+              </div>
             </div>
           </div>
 
@@ -411,11 +462,17 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
             </div>
           </div>
 
+          {!deviceIdInput.trim() || lat === null || lng === null ? (
+            <p className="text-xs text-muted-foreground">
+              Tanpa Device ID atau koordinat, perubahan nama tetap bisa disimpan tanpa mengaktifkan akun.
+            </p>
+          ) : null}
+
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>Batal</Button>
-            <Button onClick={handleApprove} disabled={!deviceIdInput.trim() || lat === null || lng === null}>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Batal</Button>
+            <Button onClick={handleApprove} disabled={saving || !fullnameInput.trim()}>
               <Activity className="mr-2 h-4 w-4" />
-              Simpan perubahan
+              {saving ? "Menyimpan..." : "Simpan perubahan"}
             </Button>
           </div>
         </DialogContent>
