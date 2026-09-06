@@ -11,12 +11,13 @@ import {
   CheckCircle2,
   CircleHelp,
   ExternalLink,
+  Mail,
   MapPin,
   Power,
   Search,
   UserRound,
 } from "lucide-react";
-import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { toast } from "sonner";
 
 import { db } from "@/lib/firebase";
@@ -66,6 +67,10 @@ function extractLatLngFromGoogleMaps(url: string) {
   if (atMatch) return { lat: +atMatch[1], lng: +atMatch[2] };
 
   return null;
+}
+
+function validEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 interface UserData {
@@ -160,6 +165,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [activeUser, setActiveUser] = useState<UserData | null>(null);
   const [fullnameInput, setFullnameInput] = useState("");
+  const [emailInput, setEmailInput] = useState("");
   const [deviceIdInput, setDeviceIdInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
   const [lat, setLat] = useState<number | null>(null);
@@ -231,10 +237,13 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
   const accountActive = activeUser?.status?.toLowerCase() === "active";
   const installationComplete =
     deviceIdInput.trim().length > 0 && lat !== null && lng !== null;
+  const emailChanged = Boolean(activeUser) && emailInput.trim() !== (activeUser?.email ?? "");
+  const formValid = Boolean(fullnameInput.trim()) && validEmail(emailInput);
 
   const openReview = (user: UserData) => {
     setActiveUser(user);
     setFullnameInput(user.fullname || "");
+    setEmailInput(user.email || "");
     setDeviceIdInput(user.deviceId || "");
     setLocationInput(user.locationName || "");
     setLat(user.lat ?? null);
@@ -247,8 +256,15 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
     if (!activeUser || saving) return;
 
     const fullname = fullnameInput.trim();
+    const email = emailInput.trim();
+
     if (!fullname) {
       toast.error("Nama pengguna tidak boleh kosong.");
+      return;
+    }
+
+    if (!validEmail(email)) {
+      toast.error("Format email pengguna tidak valid.");
       return;
     }
 
@@ -257,45 +273,60 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
       return;
     }
 
-    const updates: Record<string, string | number> = { fullname };
-    const nextUser: UserData = { ...activeUser, fullname };
-
-    if (activate || accountActive) {
-      if (installationComplete) {
-        updates.deviceId = deviceIdInput.trim();
-        updates.locationName = locationInput.trim();
-        updates.lat = lat!;
-        updates.lng = lng!;
-
-        nextUser.deviceId = deviceIdInput.trim();
-        nextUser.locationName = locationInput.trim();
-        nextUser.lat = lat!;
-        nextUser.lng = lng!;
-      }
-    }
-
-    if (activate) {
-      updates.status = "active";
-      nextUser.status = "active";
-    }
-
     setSaving(true);
 
     try {
-      await updateDoc(doc(db, "users", activeUser.id), updates);
+      const response = await fetch("/api/admin/users/update", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: activeUser.id,
+          fullname,
+          email,
+          activate,
+          deviceId: deviceIdInput.trim(),
+          locationName: locationInput.trim(),
+          lat,
+          lng,
+        }),
+      });
+
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error ?? "Gagal memperbarui pengguna.");
+      }
+
+      const returnedUser = body.user as Partial<UserData>;
+      const nextUser: UserData = {
+        ...activeUser,
+        ...returnedUser,
+        id: activeUser.id,
+      };
+
       setUsers((current) =>
         current.map((user) => (user.id === activeUser.id ? nextUser : user)),
       );
+      setActiveUser(nextUser);
+      setEmailInput(nextUser.email || email);
       setConfirmOpen(false);
       setOpen(false);
-      toast.success(
-        activate
-          ? `${fullname} berhasil dikonfirmasi dan diaktifkan.`
-          : "Perubahan pengguna berhasil disimpan.",
-      );
+
+      if (body.emailChanged) {
+        toast.success(
+          activate
+            ? `${fullname} berhasil diaktifkan. Email login juga diperbarui dan perlu diverifikasi ulang.`
+            : "Data pengguna dan email login berhasil diperbarui. Email baru perlu diverifikasi ulang.",
+        );
+      } else {
+        toast.success(
+          activate
+            ? `${fullname} berhasil dikonfirmasi dan diaktifkan.`
+            : "Perubahan pengguna berhasil disimpan.",
+        );
+      }
     } catch (error) {
       console.error("Gagal menyimpan perubahan pengguna:", error);
-      toast.error("Perubahan pengguna gagal disimpan.");
+      toast.error(error instanceof Error ? error.message : "Perubahan pengguna gagal disimpan.");
     } finally {
       setSaving(false);
     }
@@ -304,6 +335,11 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
   const openNewUserConfirmation = () => {
     if (!fullnameInput.trim()) {
       toast.error("Nama pengguna tidak boleh kosong.");
+      return;
+    }
+
+    if (!validEmail(emailInput)) {
+      toast.error("Format email pengguna tidak valid.");
       return;
     }
 
@@ -467,8 +503,8 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
             <DialogTitle>{accountActive ? "Edit pengguna & perangkat" : "Review user baru"}</DialogTitle>
             <DialogDescription>
               {accountActive
-                ? "Perbarui nama, Device ID, dan titik instalasi pengguna."
-                : "Periksa data user baru, tetapkan Device ID dan lokasi, lalu lakukan konfirmasi sebelum akun diaktifkan."}
+                ? "Perbarui nama, email login, Device ID, dan titik instalasi pengguna."
+                : "Periksa data user baru, tetapkan perangkat dan lokasi, lalu konfirmasi sebelum akun diaktifkan."}
             </DialogDescription>
           </DialogHeader>
 
@@ -484,16 +520,29 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
                   autoComplete="off"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Nama ini akan digunakan pada daftar user dan dashboard pengguna.
+                  Nama ini digunakan pada daftar user dan dashboard pengguna.
                 </p>
               </div>
 
-              {activeUser?.email ? (
-                <div className="space-y-2">
-                  <Label htmlFor="user-email">Email</Label>
-                  <Input id="user-email" value={activeUser.email} disabled />
+              <div className="space-y-2">
+                <Label htmlFor="user-email">Email login</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="user-email"
+                    type="email"
+                    value={emailInput}
+                    onChange={(event) => setEmailInput(event.target.value)}
+                    placeholder="nama@email.com"
+                    className="pl-9"
+                  />
                 </div>
-              ) : null}
+                <p className={`text-xs ${emailChanged ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground"}`}>
+                  {emailChanged
+                    ? "Email login akan ikut diubah di Firebase Authentication. Status verifikasi email baru akan menjadi belum terverifikasi, sedangkan password tetap sama."
+                    : "Email ini digunakan untuk login. Perubahan email hanya dapat dilakukan administrator."}
+                </p>
+              </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -567,7 +616,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
 
             {!accountActive && !installationComplete ? (
               <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs leading-5 text-amber-700 dark:text-amber-300">
-                Untuk mengaktifkan user baru, Device ID dan titik koordinat harus sudah ditentukan. Nama tetap dapat disimpan sebagai draft.
+                Untuk mengaktifkan user baru, Device ID dan titik koordinat harus sudah ditentukan. Nama dan email tetap dapat disimpan sebagai draft.
               </div>
             ) : null}
           </div>
@@ -582,13 +631,13 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
                 <Button
                   variant="secondary"
                   onClick={() => saveUser({ activate: false })}
-                  disabled={saving || !fullnameInput.trim()}
+                  disabled={saving || !formValid}
                 >
                   {saving ? "Menyimpan..." : "Simpan draft"}
                 </Button>
                 <Button
                   onClick={openNewUserConfirmation}
-                  disabled={saving || !fullnameInput.trim() || !installationComplete}
+                  disabled={saving || !formValid || !installationComplete}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   Konfirmasi user
@@ -597,7 +646,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
             ) : (
               <Button
                 onClick={() => saveUser({ activate: false })}
-                disabled={saving || !fullnameInput.trim()}
+                disabled={saving || !formValid}
               >
                 <Activity className="mr-2 h-4 w-4" />
                 {saving ? "Menyimpan..." : "Simpan perubahan"}
@@ -621,7 +670,7 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
 
           <div className="space-y-3 rounded-lg border bg-muted/20 p-4 text-sm">
             <ConfirmationRow label="Nama" value={fullnameInput.trim() || "-"} />
-            <ConfirmationRow label="Email" value={activeUser?.email || "-"} />
+            <ConfirmationRow label="Email login" value={emailInput.trim() || "-"} />
             <ConfirmationRow label="Device ID" value={deviceIdInput.trim() || "-"} mono />
             <ConfirmationRow label="Nama lokasi" value={locationInput.trim() || "-"} />
             <ConfirmationRow
@@ -636,14 +685,14 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
           </div>
 
           <div className="rounded-lg border border-primary/15 bg-primary/5 px-4 py-3 text-xs leading-5 text-muted-foreground">
-            User akan mendapatkan akses sebagai akun aktif dengan Device ID dan lokasi instalasi di atas.
+            User akan mendapatkan akses setelah status menjadi Active. Email belum terverifikasi tetap dapat digunakan untuk login, sedangkan verifikasi email tetap disarankan.
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={backToReview} disabled={saving}>
               Kembali
             </Button>
-            <Button onClick={() => saveUser({ activate: true })} disabled={saving}>
+            <Button onClick={() => saveUser({ activate: true })} disabled={saving || !formValid}>
               <CheckCircle2 className="mr-2 h-4 w-4" />
               {saving ? "Mengaktifkan..." : "Ya, aktifkan user"}
             </Button>
