@@ -386,89 +386,91 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="shrink-0 border-b px-6 pb-4 pt-6 pr-12">
             <DialogTitle>Edit pengguna & perangkat</DialogTitle>
             <DialogDescription>
               Nama pengguna dapat diperbarui kapan saja. Device ID dan titik instalasi tetap dikelola administrator.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-2">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullname">Nama pengguna</Label>
+                <Input
+                  id="fullname"
+                  value={fullnameInput}
+                  onChange={(event) => setFullnameInput(event.target.value)}
+                  placeholder="Nama lengkap pengguna"
+                  autoComplete="off"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Perubahan nama akan digunakan pada daftar user dan dashboard pengguna.
+                </p>
+              </div>
+
+              {activeUser?.email ? (
+                <div className="space-y-2">
+                  <Label htmlFor="user-email">Email</Label>
+                  <Input id="user-email" value={activeUser.email} disabled />
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="device-id">Device ID</Label>
+                  <Input id="device-id" value={deviceIdInput} onChange={(event) => setDeviceIdInput(event.target.value)} placeholder="Contoh: 001" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location-name">Nama lokasi</Label>
+                  <Input id="location-name" value={locationInput} onChange={(event) => setLocationInput(event.target.value)} placeholder="Contoh: Digester Utama" />
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="fullname">Nama pengguna</Label>
+              <Label htmlFor="maps-link">Link Google Maps</Label>
               <Input
-                id="fullname"
-                value={fullnameInput}
-                onChange={(event) => setFullnameInput(event.target.value)}
-                placeholder="Nama lengkap pengguna"
-                autoComplete="off"
+                id="maps-link"
+                placeholder="Tempel link Google Maps untuk mengambil koordinat"
+                onBlur={(event) => {
+                  if (!event.target.value.trim()) return;
+                  const result = extractLatLngFromGoogleMaps(event.target.value);
+                  if (result) {
+                    setLat(result.lat);
+                    setLng(result.lng);
+                  } else {
+                    alert("Link Google Maps tidak valid");
+                  }
+                }}
               />
+            </div>
+
+            <div className="overflow-hidden rounded-lg border">
+              <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Pilih lokasi instalasi</span>
+                <span>{lat !== null && lng !== null ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : "Belum dipilih"}</span>
+              </div>
+              <div className="h-[220px] sm:h-[240px]">
+                <MapContainer center={[lat ?? -2.5, lng ?? 118]} zoom={lat !== null ? 15 : 5} className="h-full w-full">
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <LocationPicker lat={lat} lng={lng} onPick={(nextLat, nextLng) => {
+                    setLat(nextLat);
+                    setLng(nextLng);
+                  }} />
+                </MapContainer>
+              </div>
+            </div>
+
+            {!deviceIdInput.trim() || lat === null || lng === null ? (
               <p className="text-xs text-muted-foreground">
-                Perubahan nama akan digunakan pada daftar user dan dashboard pengguna.
+                Tanpa Device ID atau koordinat, perubahan nama tetap bisa disimpan tanpa mengaktifkan akun.
               </p>
-            </div>
-
-            {activeUser?.email ? (
-              <div className="space-y-2">
-                <Label htmlFor="user-email">Email</Label>
-                <Input id="user-email" value={activeUser.email} disabled />
-              </div>
             ) : null}
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="device-id">Device ID</Label>
-                <Input id="device-id" value={deviceIdInput} onChange={(event) => setDeviceIdInput(event.target.value)} placeholder="Contoh: 001" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location-name">Nama lokasi</Label>
-                <Input id="location-name" value={locationInput} onChange={(event) => setLocationInput(event.target.value)} placeholder="Contoh: Digester Utama" />
-              </div>
-            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="maps-link">Link Google Maps</Label>
-            <Input
-              id="maps-link"
-              placeholder="Tempel link Google Maps untuk mengambil koordinat"
-              onBlur={(event) => {
-                if (!event.target.value.trim()) return;
-                const result = extractLatLngFromGoogleMaps(event.target.value);
-                if (result) {
-                  setLat(result.lat);
-                  setLng(result.lng);
-                } else {
-                  alert("Link Google Maps tidak valid");
-                }
-              }}
-            />
-          </div>
-
-          <div className="overflow-hidden rounded-lg border">
-            <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Pilih lokasi instalasi</span>
-              <span>{lat !== null && lng !== null ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : "Belum dipilih"}</span>
-            </div>
-            <div className="h-[280px]">
-              <MapContainer center={[lat ?? -2.5, lng ?? 118]} zoom={lat !== null ? 15 : 5} className="h-full w-full">
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <LocationPicker lat={lat} lng={lng} onPick={(nextLat, nextLng) => {
-                  setLat(nextLat);
-                  setLng(nextLng);
-                }} />
-              </MapContainer>
-            </div>
-          </div>
-
-          {!deviceIdInput.trim() || lat === null || lng === null ? (
-            <p className="text-xs text-muted-foreground">
-              Tanpa Device ID atau koordinat, perubahan nama tetap bisa disimpan tanpa mengaktifkan akun.
-            </p>
-          ) : null}
-
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex shrink-0 justify-end gap-2 border-t bg-background px-6 py-4">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Batal</Button>
             <Button onClick={handleApprove} disabled={saving || !fullnameInput.trim()}>
               <Activity className="mr-2 h-4 w-4" />
