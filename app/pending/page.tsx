@@ -33,7 +33,12 @@ export default function PendingPage() {
   const [emailVerified, setEmailVerified] = useState(false)
 
   useEffect(() => {
+    let unsubscribeUser: (() => void) | undefined
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      unsubscribeUser?.()
+      unsubscribeUser = undefined
+
       if (!user) {
         router.replace("/login")
         return
@@ -48,7 +53,7 @@ export default function PendingPage() {
       setEmail(auth.currentUser?.email ?? user.email ?? "")
       setEmailVerified(Boolean(auth.currentUser?.emailVerified))
 
-      const unsubscribeUser = onSnapshot(doc(db, "users", user.uid), async (snapshot) => {
+      unsubscribeUser = onSnapshot(doc(db, "users", user.uid), async (snapshot) => {
         if (!snapshot.exists()) {
           router.replace("/signup/complete-profile")
           return
@@ -60,6 +65,9 @@ export default function PendingPage() {
         if (data.status?.toLowerCase() === "active") {
           try {
             await user.reload()
+            setEmail(auth.currentUser?.email ?? user.email ?? "")
+            setEmailVerified(Boolean(auth.currentUser?.emailVerified))
+
             const idToken = await user.getIdToken(true)
             const response = await fetch("/api/auth/sync", {
               method: "POST",
@@ -84,11 +92,12 @@ export default function PendingPage() {
 
         setLoading(false)
       })
-
-      return () => unsubscribeUser()
     })
 
-    return () => unsubscribeAuth()
+    return () => {
+      unsubscribeUser?.()
+      unsubscribeAuth()
+    }
   }, [router])
 
   const resendVerification = async () => {
@@ -98,6 +107,8 @@ export default function PendingPage() {
     setSending(true)
     try {
       await user.reload()
+      setEmail(user.email ?? email)
+
       if (user.emailVerified) {
         setEmailVerified(true)
         toast.success("Email sudah terverifikasi.")
