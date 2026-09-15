@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 
 import { auth, db } from "@/lib/firebase"
+import { loadLeafletMarkerIcon } from "@/lib/leaflet-marker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
@@ -56,21 +57,17 @@ export default function UserEditableMap() {
   const [defaultIcon, setDefaultIcon] = useState<Icon | null>(null)
 
   useEffect(() => {
-    if (typeof window === "undefined") return
+    let active = true
 
-    import("leaflet").then((L) => {
-      setDefaultIcon(
-        L.icon({
-          iconUrl: "/leaflet/marker-icon.png",
-          iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-          shadowUrl: "/leaflet/marker-shadow.png",
-          iconSize: [25, 41],
-          iconAnchor: [12, 41],
-          popupAnchor: [1, -34],
-          shadowSize: [41, 41],
-        }),
-      )
-    })
+    loadLeafletMarkerIcon()
+      .then((icon) => {
+        if (active) setDefaultIcon(icon)
+      })
+      .catch((error) => console.error("Gagal memuat marker Leaflet:", error))
+
+    return () => {
+      active = false
+    }
   }, [])
 
   useEffect(() => {
