@@ -4,15 +4,9 @@ import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
-const markerIcon = L.icon({
-  iconUrl: "/leaflet/marker-icon.png",
-  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-  shadowUrl: "/leaflet/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+import { LEAFLET_MARKER_ICON_OPTIONS } from "@/lib/leaflet-marker";
+
+const markerIcon = L.icon(LEAFLET_MARKER_ICON_OPTIONS);
 
 export default function UserLocationMap({
   lat,
@@ -30,7 +24,10 @@ export default function UserLocationMap({
       scrollWheelZoom={false}
       className="h-full w-full"
     >
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <TileLayer
+        attribution="&copy; OpenStreetMap contributors"
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
       <Marker position={[lat, lng]} icon={markerIcon}>
         <Popup>{locationName}</Popup>
       </Marker>
