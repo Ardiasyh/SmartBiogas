@@ -1,9 +1,11 @@
 import type { Icon, IconOptions } from "leaflet"
 
+const LEAFLET_ASSET_BASE = "https://unpkg.com/leaflet@1.9.4/dist/images"
+
 export const LEAFLET_MARKER_ICON_OPTIONS: IconOptions = {
-  iconUrl: "/leaflet/marker-icon.png",
-  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-  shadowUrl: "/leaflet/marker-shadow.png",
+  iconUrl: `${LEAFLET_ASSET_BASE}/marker-icon.png`,
+  iconRetinaUrl: `${LEAFLET_ASSET_BASE}/marker-icon-2x.png`,
+  shadowUrl: `${LEAFLET_ASSET_BASE}/marker-shadow.png`,
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
