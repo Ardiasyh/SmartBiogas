@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import type { LeafletMouseEvent } from "leaflet";
+import type { Icon, LeafletMouseEvent } from "leaflet";
 import { useMapEvents } from "react-leaflet";
 import {
   Activity,
@@ -21,6 +21,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { toast } from "sonner";
 
 import { db } from "@/lib/firebase";
+import { loadLeafletMarkerIcon } from "@/lib/leaflet-marker";
 import { watchDeviceTelemetry } from "@/lib/device-telemetry";
 import { deviceStatus as telemetryStatus, type Telemetry } from "@/lib/telemetry";
 import { Badge } from "@/components/ui/badge";
@@ -141,10 +142,12 @@ function LocationPicker({
   lat,
   lng,
   onPick,
+  markerIcon,
 }: {
   lat: number | null;
   lng: number | null;
   onPick: (lat: number, lng: number) => void;
+  markerIcon: Icon | null;
 }) {
   useMapEvents({
     click(event: LeafletMouseEvent) {
@@ -152,7 +155,9 @@ function LocationPicker({
     },
   });
 
-  return lat !== null && lng !== null ? <Marker position={[lat, lng]} /> : null;
+  return lat !== null && lng !== null && markerIcon ? (
+    <Marker position={[lat, lng]} icon={markerIcon} />
+  ) : null;
 }
 
 export default function UserTable({ filterProvince }: { filterProvince?: string | null }) {
@@ -172,7 +177,22 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
   const [locationInput, setLocationInput] = useState("");
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
+  const [markerIcon, setMarkerIcon] = useState<Icon | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    loadLeafletMarkerIcon()
+      .then((icon) => {
+        if (active) setMarkerIcon(icon);
+      })
+      .catch((error) => console.error("Gagal memuat marker Leaflet:", error));
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     getDocs(collection(db, "users")).then((snapshot) => {
@@ -645,10 +665,14 @@ export default function UserTable({ filterProvince }: { filterProvince?: string 
                   zoom={lat !== null ? 15 : 5}
                   className="h-full w-full"
                 >
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <TileLayer
+                    attribution="&copy; OpenStreetMap contributors"
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
                   <LocationPicker
                     lat={lat}
                     lng={lng}
+                    markerIcon={markerIcon}
                     onPick={(nextLat, nextLng) => {
                       setLat(nextLat);
                       setLng(nextLng);
