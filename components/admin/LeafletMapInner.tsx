@@ -7,16 +7,9 @@ import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import L from "leaflet";
 
-/* FIX ICON */
-const defaultIcon = L.icon({
-  iconUrl: "/leaflet/marker-icon.png",
-  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-  shadowUrl: "/leaflet/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+import { LEAFLET_MARKER_ICON_OPTIONS } from "@/lib/leaflet-marker";
+
+const defaultIcon = L.icon(LEAFLET_MARKER_ICON_OPTIONS);
 
 interface UserMapData {
   id: string;
@@ -33,7 +26,6 @@ export default function LeafletMapInner({
 }) {
   const [users, setUsers] = useState<UserMapData[]>([]);
 
-  /* FETCH ALL USERS */
   useEffect(() => {
     async function fetchUsers() {
       const snap = await getDocs(collection(db, "users"));
@@ -46,7 +38,7 @@ export default function LeafletMapInner({
         .filter(
           (u) =>
             typeof u.lat === "number" &&
-            typeof u.lng === "number"
+            typeof u.lng === "number",
         );
 
       setUsers(data);
@@ -55,7 +47,6 @@ export default function LeafletMapInner({
     fetchUsers();
   }, []);
 
-  /* FILTER BY PROVINCE */
   const filteredUsers = selectedProvince
     ? users.filter((u) => u.province === selectedProvince)
     : users;
@@ -68,7 +59,7 @@ export default function LeafletMapInner({
       style={{ height: 420, width: "100%" }}
     >
       <TileLayer
-        attribution="&copy; OpenStreetMap"
+        attribution="&copy; OpenStreetMap contributors"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
