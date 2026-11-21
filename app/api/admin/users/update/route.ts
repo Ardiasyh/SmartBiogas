@@ -120,6 +120,20 @@ export async function PATCH(request: Request) {
       )
     }
 
+    if (installationComplete) {
+      const deviceOwner = await db.collection("users")
+        .where("deviceId", "==", deviceId)
+        .limit(1)
+        .get()
+      const conflictingProfile = deviceOwner.docs.find((document) => document.id !== uid)
+      if (conflictingProfile) {
+        return NextResponse.json(
+          { error: `Device ID ${deviceId} sudah digunakan oleh pengguna lain.` },
+          { status: 409 },
+        )
+      }
+    }
+
     const previousEmail = authUser.email ?? ""
     const previousVerified = authUser.emailVerified
     const emailChanged = previousEmail !== email

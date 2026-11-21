@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ref, query, orderByChild, limitToLast, onValue } from "firebase/database";
 import { Activity, Zap } from "lucide-react";
 import {
   Area,
@@ -11,8 +10,8 @@ import {
   YAxis,
 } from "recharts";
 
-import { rtdb } from "@/lib/firebase";
-import { calculateEnergyKwh } from "@/lib/biogas";
+import { AREA_CHART_MARGIN, paddedChartDomain } from "@/lib/chart-domain";
+import { watchHistoryFrom } from "@/lib/device-history";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -27,85 +26,73 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import {
+  CHART_RANGE_LABELS,
+  ChartRangeSelector,
+  chartRangeStart,
+  formatChartTick,
+  type ChartRange,
+} from "@/components/charts/user/ChartRangeSelector";
 
 interface EnergyData {
   timestamp: number;
-  energy: number;
+  powerKw: number;
 }
 
 interface Props {
   deviceId: string;
+  range?: ChartRange;
 }
 
+type EnergySnapshot = {
+  deviceId: string;
+  range: ChartRange;
+  points: EnergyData[];
+};
+
+const EMPTY_ENERGY_DATA: EnergyData[] = [];
+
 const chartConfig = {
-  energy: {
-    label: "Energi",
+  powerKw: {
+    label: "Daya biogas",
     color: "var(--chart-4)",
   },
 } satisfies ChartConfig;
 
-const formatTime = (value: number) =>
-  new Date(value).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-
-export default function ChartEnergyUser({ deviceId }: Props) {
-  const [data, setData] = useState<EnergyData[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function ChartEnergyUser({ deviceId, range: controlledRange }: Props) {
+  const [localRange, setLocalRange] = useState<ChartRange>("7d");
+  const range = controlledRange ?? localRange;
+  const [snapshotData, setSnapshotData] = useState<EnergySnapshot | null>(null);
+  const snapshotMatches = snapshotData?.deviceId === deviceId && snapshotData.range === range;
+  const data = snapshotMatches ? snapshotData.points : EMPTY_ENERGY_DATA;
+  const loading = Boolean(deviceId) && !snapshotMatches;
+  const domain = paddedChartDomain(data.map((point) => point.powerKw));
 
   useEffect(() => {
-    if (!deviceId) {
-      setData([]);
-      setLoading(false);
-      return;
-    }
+    if (!deviceId) return;
 
-    setLoading(true);
-
-    const logsQuery = query(
-      ref(rtdb, `biogasData/${deviceId}/logs`),
-      orderByChild("timestamp"),
-      limitToLast(20),
-    );
-
-    return onValue(
-      logsQuery,
-      (snapshot) => {
-        const points: EnergyData[] = [];
-
-        snapshot.forEach((child) => {
-          const value = child.val();
-          const timestamp = Number(value?.timestamp ?? 0);
-          const flow = Number(value?.flowrate ?? 0);
-          const storedEnergy = Number(value?.energy ?? 0);
-
-          if (!timestamp) return;
-
-          points.push({
-            timestamp,
-            energy:
-              Number.isFinite(storedEnergy) && storedEnergy !== 0
-                ? storedEnergy
-                : calculateEnergyKwh(flow),
-          });
-        });
-
-        points.sort((a, b) => a.timestamp - b.timestamp);
-        setData(points);
-        setLoading(false);
+    return watchHistoryFrom(
+      deviceId,
+      chartRangeStart(range),
+      (history) => {
+        const points = compactEnergyData(history.map((value) => ({
+          timestamp: value.timestamp,
+          powerKw: value.powerKw,
+        })));
+        setSnapshotData({ deviceId, range, points });
       },
       (error) => {
-        console.error(`[RTDB] Gagal membaca log energi device ${deviceId}:`, error);
-        setData([]);
-        setLoading(false);
+        console.error(`[RTDB] Gagal membaca log daya device ${deviceId}:`, error);
+        setSnapshotData({ deviceId, range, points: [] });
       },
     );
-  }, [deviceId]);
+  }, [deviceId, range]);
 
   const stats = useMemo(() => {
-    const latest = data.at(-1)?.energy ?? 0;
-    const total = data.reduce((sum, point) => sum + point.energy, 0);
-    const average = data.length ? total / data.length : 0;
-    const peak = data.length ? Math.max(...data.map((point) => point.energy)) : 0;
-    return { latest, total, average, peak };
+    const latest = data.at(-1)?.powerKw ?? 0;
+    const average = data.length ? data.reduce((sum, point) => sum + point.powerKw, 0) / data.length : 0;
+    const peak = data.length ? Math.max(...data.map((point) => point.powerKw)) : 0;
+    return { latest, average, peak };
   }, [data]);
 
   return (
@@ -118,29 +105,38 @@ export default function ChartEnergyUser({ deviceId }: Props) {
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <CardTitle className="text-base">Energi biogas</CardTitle>
+              <CardTitle className="text-base">Daya biogas</CardTitle>
                 <Badge variant="secondary" className="gap-1 font-normal">
                   <Activity className="h-3 w-3" /> Live history
                 </Badge>
               </div>
-              <CardDescription className="mt-1">20 sampel histori energi terbaru</CardDescription>
+              <CardDescription className="mt-1">
+                {CHART_RANGE_LABELS[range]} terakhir · {data.length} titik ringkas
+              </CardDescription>
             </div>
           </div>
 
           <div className="text-left sm:text-right">
             <p className="text-xs text-muted-foreground">Nilai terbaru</p>
             <p className="text-2xl font-semibold tracking-tight tabular-nums">
-              {stats.latest.toFixed(3)} <span className="text-sm font-normal text-muted-foreground">kWh</span>
+              {stats.latest.toFixed(3)} <span className="text-sm font-normal text-muted-foreground">kW</span>
             </p>
           </div>
         </div>
+
+        {controlledRange === undefined && (
+          <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs text-muted-foreground">Rentang data</span>
+            <ChartRangeSelector value={range} onChange={setLocalRange} />
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="p-0">
         <div className="grid grid-cols-3 border-b bg-muted/10">
-          <Stat label="Rata-rata" value={`${stats.average.toFixed(3)} kWh`} />
-          <Stat label="Puncak" value={`${stats.peak.toFixed(3)} kWh`} />
-          <Stat label="Total sampel" value={`${stats.total.toFixed(3)} kWh`} />
+          <Stat label="Rata-rata daya" value={`${stats.average.toFixed(3)} kW`} />
+          <Stat label="Puncak daya" value={`${stats.peak.toFixed(3)} kW`} />
+          <Stat label="Jumlah sampel" value={data.length.toLocaleString("id-ID")} />
         </div>
 
         {loading ? (
@@ -152,52 +148,38 @@ export default function ChartEnergyUser({ deviceId }: Props) {
             <ChartEmpty />
           </div>
         ) : (
-          <ChartContainer config={chartConfig} className="h-[330px] w-full aspect-auto px-2 pb-4 pt-5 sm:px-4">
-            <AreaChart accessibilityLayer data={data} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
-              <defs>
-                <linearGradient id="userEnergyFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-energy)" stopOpacity={0.30} />
-                  <stop offset="95%" stopColor="var(--color-energy)" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-
-              <CartesianGrid vertical={false} strokeDasharray="3 5" />
+          <ChartContainer config={chartConfig} className="h-[300px] min-h-[300px] w-full aspect-auto px-1 pb-2 pt-3 sm:px-3">
+            <AreaChart accessibilityLayer data={data} margin={AREA_CHART_MARGIN}>
+              <CartesianGrid vertical={false} />
               <XAxis
                 dataKey="timestamp"
-                tickFormatter={formatTime}
+                tickFormatter={(value) => formatChartTick(Number(value), range)}
                 tickLine={false}
                 axisLine={false}
                 minTickGap={28}
-                tickMargin={10}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                width={58}
                 tickMargin={8}
-                tickFormatter={(value) => Number(value).toFixed(2)}
               />
+              <YAxis hide domain={domain} />
               <ChartTooltip
-                cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }}
+                cursor={{ stroke: "var(--border)", strokeDasharray: "3 4" }}
                 content={
                   <ChartTooltipContent
                     indicator="line"
                     labelFormatter={(label) => new Date(Number(label)).toLocaleString("id-ID")}
-                    valueFormatter={(value) => `${Number(value).toFixed(3)} kWh`}
+                    valueFormatter={(value) => `${Number(value).toFixed(3)} kW`}
                   />
                 }
               />
               <Area
                 type="monotone"
-                dataKey="energy"
-                stroke="var(--color-energy)"
-                fill="url(#userEnergyFill)"
-                strokeWidth={2.25}
+                dataKey="powerKw"
+                stroke="var(--color-powerKw)"
+                fill="var(--color-powerKw)"
+                fillOpacity={0.12}
+                strokeWidth={2}
                 dot={false}
-                activeDot={{ r: 4, strokeWidth: 2, fill: "var(--background)" }}
-                isAnimationActive
-                animationDuration={900}
-                animationEasing="ease-out"
+                activeDot={{ r: 3, strokeWidth: 0 }}
+                isAnimationActive={false}
               />
             </AreaChart>
           </ChartContainer>
@@ -216,6 +198,21 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function compactEnergyData(points: EnergyData[], maxPoints = 120) {
+  if (points.length <= maxPoints) return points;
+
+  const bucketSize = Math.ceil(points.length / maxPoints);
+  const compacted: EnergyData[] = [];
+  for (let index = 0; index < points.length; index += bucketSize) {
+    const bucket = points.slice(index, index + bucketSize);
+    compacted.push({
+      timestamp: Math.round(bucket.reduce((sum, point) => sum + point.timestamp, 0) / bucket.length),
+      powerKw: bucket.reduce((sum, point) => sum + point.powerKw, 0) / bucket.length,
+    });
+  }
+  return compacted;
+}
+
 function ChartLoading() {
   return (
     <div className="flex h-full items-end gap-2 px-3 pb-8">
@@ -227,5 +224,5 @@ function ChartLoading() {
 }
 
 function ChartEmpty() {
-  return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Belum ada data energi.</div>;
+  return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Belum ada data daya.</div>;
 }

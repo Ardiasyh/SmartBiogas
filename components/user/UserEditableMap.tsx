@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
-import type { Icon } from "leaflet"
+import type { DivIcon } from "leaflet"
 import { onAuthStateChanged } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import {
@@ -14,7 +14,10 @@ import {
 } from "lucide-react"
 
 import { auth, db } from "@/lib/firebase"
-import { loadLeafletMarkerIcon } from "@/lib/leaflet-marker"
+import {
+  loadDeviceStatusMarkerIcon,
+  type DeviceMarkerStatus,
+} from "@/lib/leaflet-marker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
@@ -51,17 +54,20 @@ const EMPTY_LOCATION: LocationData = {
   city: "",
 }
 
-export default function UserEditableMap() {
+export default function UserEditableMap({ status = "offline" }: { status?: string }) {
   const [location, setLocation] = useState<LocationData>(EMPTY_LOCATION)
   const [loading, setLoading] = useState(true)
-  const [defaultIcon, setDefaultIcon] = useState<Icon | null>(null)
+  const [statusIcons, setStatusIcons] = useState<Record<DeviceMarkerStatus, DivIcon> | null>(null)
 
   useEffect(() => {
     let active = true
 
-    loadLeafletMarkerIcon()
-      .then((icon) => {
-        if (active) setDefaultIcon(icon)
+    Promise.all([
+      loadDeviceStatusMarkerIcon("online"),
+      loadDeviceStatusMarkerIcon("offline"),
+    ])
+      .then(([online, offline]) => {
+        if (active) setStatusIcons({ online, offline })
       })
       .catch((error) => console.error("Gagal memuat marker Leaflet:", error))
 
@@ -100,6 +106,7 @@ export default function UserEditableMap() {
   }, [])
 
   const hasLocation = location.lat !== null && location.lng !== null
+  const markerStatus: DeviceMarkerStatus = status.toLowerCase() === "online" ? "online" : "offline"
 
   const placeLabel = useMemo(() => {
     if (location.locationName) return location.locationName
@@ -134,6 +141,17 @@ export default function UserEditableMap() {
           <Badge variant="outline" className="gap-1.5 font-normal text-muted-foreground">
             <LockKeyhole className="h-3 w-3" /> Read only
           </Badge>
+          <Badge
+            variant="outline"
+            className={
+              markerStatus === "online"
+                ? "gap-1.5 border-cyan-500/30 bg-cyan-500/5 font-normal text-cyan-700 dark:text-cyan-400"
+                : "gap-1.5 border-rose-500/30 bg-rose-500/5 font-normal text-rose-700 dark:text-rose-400"
+            }
+          >
+            <span className={`h-2 w-2 rounded-full ${markerStatus === "online" ? "bg-cyan-500" : "bg-rose-500"}`} />
+            Perangkat {markerStatus === "online" ? "online" : "offline"}
+          </Badge>
         </div>
 
         {hasLocation ? (
@@ -161,10 +179,10 @@ export default function UserEditableMap() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-            {hasLocation && defaultIcon ? (
+            {hasLocation && statusIcons ? (
               <Marker
                 position={[location.lat!, location.lng!]}
-                icon={defaultIcon}
+                icon={statusIcons[markerStatus]}
                 draggable={false}
               />
             ) : null}
@@ -182,6 +200,11 @@ export default function UserEditableMap() {
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {regionLabel || (hasLocation ? "Titik instalasi terdaftar" : "Lokasi belum ditentukan admin")}
                 </p>
+                {hasLocation ? (
+                  <p className={`mt-1 text-xs font-medium ${markerStatus === "online" ? "text-cyan-600 dark:text-cyan-400" : "text-rose-600 dark:text-rose-400"}`}>
+                    Perangkat {markerStatus === "online" ? "online" : "offline"}
+                  </p>
+                ) : null}
                 {hasLocation ? (
                   <p className="mt-1 font-mono text-[11px] text-muted-foreground">
                     {location.lat!.toFixed(5)}, {location.lng!.toFixed(5)}

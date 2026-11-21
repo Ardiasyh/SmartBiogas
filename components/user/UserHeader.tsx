@@ -82,7 +82,7 @@ export default function UserHeader({ status }: Props) {
             </Badge>
             <CardTitle className="text-2xl sm:text-3xl">Halo, {username}</CardTitle>
             <CardDescription className="mt-2 max-w-2xl text-sm leading-6">
-              Pantau kondisi digester, aliran gas, tekanan, suhu, energi, dan histori perangkat dari satu dashboard.
+              Pantau kondisi digester, aliran gas, tekanan, suhu, daya biogas, dan histori perangkat dari satu dashboard.
             </CardDescription>
           </div>
 

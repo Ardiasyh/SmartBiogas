@@ -11,12 +11,12 @@ import {
 import {
   convertFlow,
   flowLabel,
-  convertEnergy,
-  energyLabel,
+  convertPower,
+  powerLabel,
   convertPressure,
   pressureLabel,
   type FlowUnit,
-  type EnergyUnit,
+  type PowerUnit,
   type PressureUnit,
 } from "@/lib/converters"
 import { Badge } from "@/components/ui/badge"
@@ -33,41 +33,50 @@ type Props = {
   pressure: number
   temperature: number
   totalUsage: number
-  energy: number
+  powerKw: number
+  massKgph?: number
+  sensorStatus?: string
   flowUnit: FlowUnit
   pressureUnit: PressureUnit
-  energyUnit: EnergyUnit
+  powerUnit: PowerUnit
   onChangeFlowUnit: (u: FlowUnit) => void
   onChangePressureUnit: (u: PressureUnit) => void
-  onChangeEnergyUnit: (u: EnergyUnit) => void
+  onChangePowerUnit: (u: PowerUnit) => void
 }
 
 export default function UserBiogasCard({
   flowRate,
   pressure,
   temperature,
-  energy,
+  powerKw,
+  massKgph,
+  sensorStatus,
   flowUnit,
   pressureUnit,
-  energyUnit,
+  powerUnit,
   onChangeFlowUnit,
   onChangePressureUnit,
-  onChangeEnergyUnit,
+  onChangePowerUnit,
 }: Props) {
   const flowValue = convertFlow(flowRate, flowUnit)
   const pressureValue = convertPressure(pressure, pressureUnit)
-  const energyValue = convertEnergy(energy, energyUnit)
+  const powerValue = convertPower(powerKw, powerUnit)
 
   const safeFlow = Number.isFinite(flowValue) ? flowValue : 0
   const safePressure = Number.isFinite(pressureValue) ? pressureValue : 0
   const safeTemperature = Number.isFinite(temperature) ? temperature : 0
-  const safeEnergy = Number.isFinite(energyValue) ? energyValue : 0
+  const safePower = Number.isFinite(powerValue) ? powerValue : 0
 
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <Badge variant="secondary">Live telemetry</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">Live telemetry</Badge>
+            {sensorStatus?.toLowerCase() === "warning" && (
+              <Badge variant="destructive">Sensor perlu diperiksa</Badge>
+            )}
+          </div>
           <h2 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
             Kondisi perangkat saat ini
           </h2>
@@ -78,7 +87,7 @@ export default function UserBiogasCard({
         <Badge variant="outline" className="w-fit">Update otomatis</Badge>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard
           title="Flow Rate"
           description="Laju aliran biogas"
@@ -128,22 +137,31 @@ export default function UserBiogasCard({
         />
 
         <MetricCard
-          title="Energy"
-          description="Energi biogas terukur"
-          value={safeEnergy.toFixed(3)}
-          unit={energyLabel(energyUnit)}
+          title="Daya biogas"
+          description="Daya sesaat dari flowrate biogas"
+          value={safePower.toFixed(3)}
+          unit={powerLabel(powerUnit)}
           icon={Zap}
           iconClassName="text-violet-600 dark:text-violet-400"
           control={
             <MetricSelect
-              value={energyUnit}
-              onChange={(value) => onChangeEnergyUnit(value as EnergyUnit)}
+              value={powerUnit}
+              onChange={(value) => onChangePowerUnit(value as PowerUnit)}
               options={[
-                ["kwh", "kWh"],
-                ["mj", "MJ"],
+                ["kw", "kW"],
+                ["w", "W"],
               ]}
             />
           }
+        />
+
+        <MetricCard
+          title="Laju massa"
+          description="Laju massa biogas terhitung"
+          value={Number.isFinite(massKgph) ? (massKgph ?? 0).toFixed(3) : "—"}
+          unit="kg/jam"
+          icon={Wind}
+          iconClassName="text-emerald-600 dark:text-emerald-400"
         />
       </div>
     </section>

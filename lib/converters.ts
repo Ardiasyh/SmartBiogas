@@ -1,5 +1,5 @@
 export type FlowUnit = "m3h" | "lmin";
-export type EnergyUnit = "kwh" | "mj";
+export type PowerUnit = "kw" | "w";
 export type PressureUnit = "pa" | "kpa" | "bar";
 
 
@@ -15,15 +15,15 @@ export function flowLabel(unit: FlowUnit) {
 }
 
 
-// ================= ENERGY =================
+// ================= POWER =================
 
-export function convertEnergy(value: number, unit: EnergyUnit) {
-  if (unit === "mj") return value * 3.6; // kWh → MJ
-  return value; // default kWh
+export function convertPower(value: number, unit: PowerUnit) {
+  if (unit === "w") return value * 1000; // kW → W
+  return value;
 }
 
-export function energyLabel(unit: EnergyUnit) {
-  return unit === "mj" ? "MJ" : "kWh";
+export function powerLabel(unit: PowerUnit) {
+  return unit === "w" ? "W" : "kW";
 }
 
 

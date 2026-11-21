@@ -8,6 +8,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { AREA_CHART_MARGIN, paddedChartDomain } from "@/lib/chart-domain";
+
 import {
   ChartContainer,
   ChartTooltip,
@@ -35,12 +37,14 @@ type Props = {
 };
 
 export default function PressureChart({ data, unit }: Props) {
-  const chartData = data.map((point) => ({
+  const fullChartData = data.map((point) => ({
     ...point,
     pressureConverted: convertPressure(point.pressure ?? 0, unit),
   }));
+  const chartData = compactPressureData(fullChartData);
+  const domain = paddedChartDomain(chartData.map((point) => point.pressureConverted));
 
-  if (chartData.length === 0) {
+  if (fullChartData.length === 0) {
     return (
       <div className="flex h-72 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
         Belum ada data tekanan.
@@ -49,32 +53,19 @@ export default function PressureChart({ data, unit }: Props) {
   }
 
   return (
-    <ChartContainer config={chartConfig} className="h-72 w-full aspect-auto">
-      <AreaChart accessibilityLayer data={chartData} margin={{ top: 10, right: 8, left: -14, bottom: 0 }}>
-        <defs>
-          <linearGradient id="adminPressureFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--color-pressureConverted)" stopOpacity={0.28} />
-            <stop offset="95%" stopColor="var(--color-pressureConverted)" stopOpacity={0.02} />
-          </linearGradient>
-        </defs>
-
-        <CartesianGrid vertical={false} strokeDasharray="3 5" />
+    <ChartContainer config={chartConfig} className="h-[260px] min-h-[260px] w-full aspect-auto">
+      <AreaChart accessibilityLayer data={chartData} margin={AREA_CHART_MARGIN}>
+        <CartesianGrid vertical={false} />
         <XAxis
           dataKey="index"
           tickLine={false}
           axisLine={false}
-          tickMargin={10}
+          tickMargin={8}
           minTickGap={18}
         />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          width={58}
-          tickFormatter={(value) => Number(value).toFixed(2)}
-        />
+        <YAxis hide domain={domain} />
         <ChartTooltip
-          cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }}
+          cursor={{ stroke: "var(--border)", strokeDasharray: "3 4" }}
           content={
             <ChartTooltipContent
               indicator="line"
@@ -88,15 +79,36 @@ export default function PressureChart({ data, unit }: Props) {
           type="monotone"
           dataKey="pressureConverted"
           stroke="var(--color-pressureConverted)"
-          strokeWidth={2.25}
-          fill="url(#adminPressureFill)"
+          fill="var(--color-pressureConverted)"
+          fillOpacity={0.12}
+          strokeWidth={2}
           dot={false}
-          activeDot={{ r: 4, strokeWidth: 2, fill: "var(--background)" }}
-          isAnimationActive
-          animationDuration={850}
-          animationEasing="ease-out"
+          activeDot={{ r: 3, strokeWidth: 0 }}
+          isAnimationActive={false}
         />
       </AreaChart>
     </ChartContainer>
   );
+}
+
+function compactPressureData<T extends { timestamp?: number; pressureConverted: number }>(
+  points: T[],
+  maxPoints = 120,
+) {
+  if (points.length <= maxPoints) return points;
+
+  const bucketSize = Math.ceil(points.length / maxPoints);
+  const compacted: T[] = [];
+  for (let index = 0; index < points.length; index += bucketSize) {
+    const bucket = points.slice(index, index + bucketSize);
+    compacted.push({
+      ...bucket[0],
+      timestamp: Math.round(
+        bucket.reduce((sum, point) => sum + (point.timestamp ?? 0), 0) / bucket.length,
+      ),
+      pressureConverted:
+        bucket.reduce((sum, point) => sum + point.pressureConverted, 0) / bucket.length,
+    });
+  }
+  return compacted;
 }

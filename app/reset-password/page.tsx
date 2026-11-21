@@ -57,7 +57,7 @@ export default function ResetPasswordPage() {
               <Label>Email</Label>
               <Input
                 type="email"
-                placeholder="admin@example.com"
+                placeholder="Masukan Email Yang Terdaftar"
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ref, query, orderByChild, limitToLast, onValue } from "firebase/database";
 import { Activity, Wind } from "lucide-react";
 import {
   Area,
@@ -11,7 +10,8 @@ import {
   YAxis,
 } from "recharts";
 
-import { rtdb } from "@/lib/firebase";
+import { watchHistoryFrom } from "@/lib/device-history";
+import { AREA_CHART_MARGIN, paddedChartDomain } from "@/lib/chart-domain";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -26,6 +26,13 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import {
+  CHART_RANGE_LABELS,
+  ChartRangeSelector,
+  chartRangeStart,
+  formatChartTick,
+  type ChartRange,
+} from "@/components/charts/user/ChartRangeSelector";
 
 interface FlowData {
   timestamp: number;
@@ -34,7 +41,16 @@ interface FlowData {
 
 interface Props {
   deviceId: string;
+  range?: ChartRange;
 }
+
+type FlowSnapshot = {
+  deviceId: string;
+  range: ChartRange;
+  points: FlowData[];
+};
+
+const EMPTY_FLOW_DATA: FlowData[] = [];
 
 const chartConfig = {
   flow: {
@@ -43,55 +59,35 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-const formatTime = (value: number) =>
-  new Date(value).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-
-export default function ChartFlowrateUser({ deviceId }: Props) {
-  const [data, setData] = useState<FlowData[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function ChartFlowrateUser({ deviceId, range: controlledRange }: Props) {
+  const [localRange, setLocalRange] = useState<ChartRange>("7d");
+  const range = controlledRange ?? localRange;
+  const [snapshotData, setSnapshotData] = useState<FlowSnapshot | null>(null);
+  const snapshotMatches = snapshotData?.deviceId === deviceId && snapshotData.range === range;
+  const data = snapshotMatches ? snapshotData.points : EMPTY_FLOW_DATA;
+  const loading = Boolean(deviceId) && !snapshotMatches;
+  const domain = paddedChartDomain(data.map((point) => point.flow));
 
   useEffect(() => {
-    if (!deviceId) {
-      setData([]);
-      setLoading(false);
-      return;
-    }
+    if (!deviceId) return;
 
-    setLoading(true);
-
-    const logsQuery = query(
-      ref(rtdb, `biogasData/${deviceId}/logs`),
-      orderByChild("timestamp"),
-      limitToLast(20),
-    );
-
-    return onValue(
-      logsQuery,
-      (snapshot) => {
-        const points: FlowData[] = [];
-
-        snapshot.forEach((child) => {
-          const value = child.val();
-          const timestamp = Number(value?.timestamp ?? 0);
-          if (!timestamp) return;
-
-          points.push({
-            timestamp,
-            flow: Number(value?.flowrate ?? 0),
-          });
-        });
-
-        points.sort((a, b) => a.timestamp - b.timestamp);
-        setData(points);
-        setLoading(false);
+    return watchHistoryFrom(
+      deviceId,
+      chartRangeStart(range),
+      (history) => {
+        const points = compactFlowData(
+          history.map((value) => ({ timestamp: value.timestamp, flow: value.flowrate })),
+        );
+        setSnapshotData({ deviceId, range, points });
       },
       (error) => {
         console.error(`[RTDB] Gagal membaca flowrate device ${deviceId}:`, error);
-        setData([]);
-        setLoading(false);
+        setSnapshotData({ deviceId, range, points: [] });
       },
     );
-  }, [deviceId]);
+  }, [deviceId, range]);
+
+  const chartData = data;
 
   const stats = useMemo(() => {
     const latest = data.at(-1)?.flow ?? 0;
@@ -116,7 +112,9 @@ export default function ChartFlowrateUser({ deviceId }: Props) {
                   <Activity className="h-3 w-3" /> Live history
                 </Badge>
               </div>
-              <CardDescription className="mt-1">20 sampel terakhir dalam m³/h</CardDescription>
+              <CardDescription className="mt-1">
+                {CHART_RANGE_LABELS[range]} terakhir · {data.length} titik ringkas dalam m³/h
+              </CardDescription>
             </div>
           </div>
 
@@ -127,6 +125,13 @@ export default function ChartFlowrateUser({ deviceId }: Props) {
             </p>
           </div>
         </div>
+
+        {controlledRange === undefined && (
+          <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs text-muted-foreground">Rentang data</span>
+            <ChartRangeSelector value={range} onChange={setLocalRange} />
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="p-0">
@@ -145,33 +150,20 @@ export default function ChartFlowrateUser({ deviceId }: Props) {
             <ChartEmpty />
           </div>
         ) : (
-          <ChartContainer config={chartConfig} className="h-[300px] w-full aspect-auto px-2 pb-4 pt-5 sm:px-4">
-            <AreaChart accessibilityLayer data={data} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
-              <defs>
-                <linearGradient id="userFlowFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-flow)" stopOpacity={0.28} />
-                  <stop offset="95%" stopColor="var(--color-flow)" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-
-              <CartesianGrid vertical={false} strokeDasharray="3 5" />
+          <ChartContainer config={chartConfig} className="h-[280px] min-h-[280px] w-full aspect-auto px-1 pb-2 pt-3 sm:px-3">
+            <AreaChart accessibilityLayer data={chartData} margin={AREA_CHART_MARGIN}>
+              <CartesianGrid vertical={false} />
               <XAxis
                 dataKey="timestamp"
-                tickFormatter={formatTime}
+                tickFormatter={(value) => formatChartTick(Number(value), range)}
                 tickLine={false}
                 axisLine={false}
                 minTickGap={28}
-                tickMargin={10}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                width={58}
                 tickMargin={8}
-                tickFormatter={(value) => Number(value).toFixed(2)}
               />
+              <YAxis hide domain={domain} />
               <ChartTooltip
-                cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }}
+                cursor={{ stroke: "var(--border)", strokeDasharray: "3 4" }}
                 content={
                   <ChartTooltipContent
                     indicator="line"
@@ -184,13 +176,12 @@ export default function ChartFlowrateUser({ deviceId }: Props) {
                 type="monotone"
                 dataKey="flow"
                 stroke="var(--color-flow)"
-                fill="url(#userFlowFill)"
-                strokeWidth={2.25}
+                fill="var(--color-flow)"
+                fillOpacity={0.12}
+                strokeWidth={2}
                 dot={false}
-                activeDot={{ r: 4, strokeWidth: 2, fill: "var(--background)" }}
-                isAnimationActive
-                animationDuration={850}
-                animationEasing="ease-out"
+                activeDot={{ r: 3, strokeWidth: 0 }}
+                isAnimationActive={false}
               />
             </AreaChart>
           </ChartContainer>
@@ -207,6 +198,21 @@ function Stat({ label, value }: { label: string; value: string }) {
       <p className="mt-0.5 text-sm font-medium tabular-nums">{value}</p>
     </div>
   );
+}
+
+function compactFlowData(points: FlowData[], maxPoints = 120) {
+  if (points.length <= maxPoints) return points;
+
+  const bucketSize = Math.ceil(points.length / maxPoints);
+  const compacted: FlowData[] = [];
+  for (let index = 0; index < points.length; index += bucketSize) {
+    const bucket = points.slice(index, index + bucketSize);
+    compacted.push({
+      timestamp: Math.round(bucket.reduce((sum, point) => sum + point.timestamp, 0) / bucket.length),
+      flow: bucket.reduce((sum, point) => sum + point.flow, 0) / bucket.length,
+    });
+  }
+  return compacted;
 }
 
 function ChartLoading() {

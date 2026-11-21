@@ -328,7 +328,7 @@ export default function UserProfilePage() {
             )}
           </CardHeader>
           <CardContent>
-            <UserEditableMap />
+            <UserEditableMap status={deviceStatus} />
           </CardContent>
           {hasLocation && (
             <CardFooter className="border-t bg-muted/20 px-6 py-4">

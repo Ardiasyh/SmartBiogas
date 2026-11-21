@@ -43,7 +43,7 @@ const telemetry = [
   { label: "Flowrate", value: "1.284", unit: "m³/h", icon: Wind, className: "text-sky-600 dark:text-sky-400" },
   { label: "Tekanan", value: "3.42", unit: "kPa", icon: Gauge, className: "text-amber-600 dark:text-amber-400" },
   { label: "Suhu", value: "31.6", unit: "°C", icon: Thermometer, className: "text-rose-600 dark:text-rose-400" },
-  { label: "Energi", value: "0.824", unit: "kWh", icon: Zap, className: "text-violet-600 dark:text-violet-400" },
+  { label: "Daya biogas", value: "0.824", unit: "kW", icon: Zap, className: "text-violet-600 dark:text-violet-400" },
 ]
 
 const features: Array<{
@@ -59,7 +59,7 @@ const features: Array<{
   {
     icon: BarChart3,
     title: "Histori & analitik",
-    description: "Lihat perubahan flowrate, tekanan, suhu, dan energi dari data history.",
+    description: "Lihat perubahan flowrate, tekanan, suhu, dan daya biogas dari data history.",
   },
   {
     icon: MapPin,
@@ -164,7 +164,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-            Smart Biogas menghubungkan perangkat sensor, Firebase, dan dashboard web untuk memantau flowrate, tekanan, suhu, energi, status perangkat, dan histori data.
+            Smart Biogas menghubungkan perangkat sensor, Firebase, dan dashboard web untuk memantau flowrate, tekanan, suhu, daya biogas, status perangkat, dan histori data.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -221,7 +221,7 @@ export default function LandingPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="text-sm">Trend energi</CardTitle>
+                    <CardTitle className="text-sm">Trend daya biogas</CardTitle>
                     <CardDescription>12 pembacaan terakhir</CardDescription>
                   </div>
                   <Badge variant="secondary">Live</Badge>

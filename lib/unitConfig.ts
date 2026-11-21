@@ -1,5 +1,5 @@
 export type FlowUnit = "m3h" | "lmin"
-export type EnergyUnit = "kwh" | "mj"
+export type PowerUnit = "kw" | "w"
 
 export const flowUnits = {
   m3h: {
@@ -12,13 +12,13 @@ export const flowUnits = {
   },
 }
 
-export const energyUnits = {
-  kwh: {
-    label: "kWh",
+export const powerUnits = {
+  kw: {
+    label: "kW",
     factor: 1,
   },
-  mj: {
-    label: "MJ",
-    factor: 3.6,
+  w: {
+    label: "W",
+    factor: 1000,
   },
 }

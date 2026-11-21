@@ -145,7 +145,7 @@ export default function LoginForm({
               Kembali ke dashboard monitoring Anda.
             </h1>
             <p className="mt-4 leading-7 text-muted-foreground">
-              Masuk untuk melihat flowrate, tekanan, suhu, energi, histori perangkat, dan lokasi instalasi dari satu tempat.
+              Masuk untuk melihat flowrate, tekanan, suhu, daya biogas, histori perangkat, dan lokasi instalasi dari satu tempat.
             </p>
           </div>
 
@@ -215,7 +215,7 @@ export default function LoginForm({
                         value={email}
                         autoComplete="email"
                         required
-                        placeholder="nama@email.com"
+                        placeholder=""
                         className="pl-9"
                         onChange={(event) => setEmail(event.target.value)}
                       />
@@ -242,7 +242,7 @@ export default function LoginForm({
                         value={password}
                         autoComplete="current-password"
                         required
-                        placeholder="Masukkan password"
+                        placeholder=""
                         className="pl-9 pr-10"
                         onChange={(event) => setPassword(event.target.value)}
                       />

@@ -16,27 +16,35 @@ import ExportExcelButton from "@/components/export/ExportExcelButton"
 import ChartTotalEnergyUser from "@/components/charts/user/ChartTotalEnergyUser"
 import ChartFlowrateUser from "@/components/charts/user/ChartFlowrateUse"
 import ChartPressureUser from "@/components/charts/user/ChartPressureUser"
+import LiveTelemetryCharts from "@/components/charts/user/LiveTelemetryCharts"
+import {
+  ChartRangeSelector,
+  type ChartRange,
+} from "@/components/charts/user/ChartRangeSelector"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
-import { calculateEnergyKwh } from "@/lib/biogas"
-import type { FlowUnit, PressureUnit, EnergyUnit } from "@/lib/converters"
+import type { FlowUnit, PressureUnit, PowerUnit } from "@/lib/converters"
+import { DEVICE_OFFLINE_TIMEOUT_MS } from "@/lib/telemetry"
 
 export default function UserPage() {
   const [deviceId, setDeviceId] = useState<string>("")
   const [flowRate, setFlowRate] = useState<number>(0)
   const [pressure, setPressure] = useState<number>(0)
   const [temperature, setTemperature] = useState<number>(0)
-  const [energy, setEnergy] = useState<number>(0)
+  const [powerKw, setPowerKw] = useState<number>(0)
+  const [massKgph, setMassKgph] = useState<number | undefined>(undefined)
+  const [sensorStatus, setSensorStatus] = useState("online")
   const [status, setStatus] = useState<string>("offline")
   const [flowUnit, setFlowUnit] = useState<FlowUnit>("m3h")
   const [pressureUnit, setPressureUnit] = useState<PressureUnit>("kpa")
-  const [energyUnit, setEnergyUnit] = useState<EnergyUnit>("kwh")
+  const [powerUnit, setPowerUnit] = useState<PowerUnit>("kw")
+  const [historyRange, setHistoryRange] = useState<ChartRange>("7d")
 
   useEffect(() => {
     let stopTelemetry: (() => void) | null = null
     let intervalCheck: ReturnType<typeof setInterval> | null = null
-    const OFFLINE_TIMEOUT = 60000
+    const OFFLINE_TIMEOUT = DEVICE_OFFLINE_TIMEOUT_MS
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -66,7 +74,9 @@ export default function UserPage() {
           setFlowRate(rawFlow)
           setPressure(latest.pressure)
           setTemperature(latest.temperature)
-          setEnergy(latest.energy || calculateEnergyKwh(rawFlow))
+          setPowerKw(latest.powerKw)
+          setMassKgph(latest.massKgph)
+          setSensorStatus(latest.status ?? "online")
           lastTimestamp = latest.timestamp
           setStatus(Date.now() - lastTimestamp <= OFFLINE_TIMEOUT ? "online" : "offline")
         })
@@ -95,14 +105,16 @@ export default function UserPage() {
         flowRate={flowRate}
         pressure={pressure}
         temperature={temperature}
-        energy={energy}
+        powerKw={powerKw}
+        massKgph={massKgph}
+        sensorStatus={sensorStatus}
         totalUsage={0}
         flowUnit={flowUnit}
         pressureUnit={pressureUnit}
-        energyUnit={energyUnit}
+        powerUnit={powerUnit}
         onChangeFlowUnit={setFlowUnit}
         onChangePressureUnit={setPressureUnit}
-        onChangeEnergyUnit={setEnergyUnit}
+        onChangePowerUnit={setPowerUnit}
       />
 
       <EmissionComparisonCard
@@ -123,23 +135,28 @@ export default function UserPage() {
                     <BarChart3 className="h-3 w-3" /> Analytics
                   </Badge>
                 </div>
-                <CardDescription>Pantau tren energi, flowrate, dan tekanan dari histori perangkat yang tersimpan.</CardDescription>
+                <CardDescription>Pantau tren daya biogas, flowrate, dan tekanan dari histori perangkat yang tersimpan.</CardDescription>
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                  Device <span className="font-mono font-medium text-foreground">{deviceId}</span>
+              <div className="flex flex-col gap-2 lg:items-end">
+                <ChartRangeSelector value={historyRange} onChange={setHistoryRange} />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                    Device <span className="font-mono font-medium text-foreground">{deviceId}</span>
+                  </div>
+                  <ExportExcelButton deviceId={deviceId} variant="outline" size="sm" />
                 </div>
-                <ExportExcelButton deviceId={deviceId} variant="outline" size="sm" />
               </div>
             </CardHeader>
           </Card>
 
-          <ChartTotalEnergyUser deviceId={deviceId} />
+          <LiveTelemetryCharts deviceId={deviceId} />
+
+          <ChartTotalEnergyUser deviceId={deviceId} range={historyRange} />
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <ChartFlowrateUser deviceId={deviceId} />
-            <ChartPressureUser deviceId={deviceId} />
+            <ChartFlowrateUser deviceId={deviceId} range={historyRange} />
+            <ChartPressureUser deviceId={deviceId} range={historyRange} />
           </div>
         </section>
       )}
@@ -164,7 +181,7 @@ export default function UserPage() {
         </CardHeader>
 
         <CardContent className="p-5">
-          <UserEditableMap />
+          <UserEditableMap status={status} />
         </CardContent>
       </Card>
     </div>

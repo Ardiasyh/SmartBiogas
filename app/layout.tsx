@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s | Smart Biogas",
   },
   description:
-    "Sistem monitoring biogas berbasis IoT untuk memantau flowrate, tekanan, suhu, energi, status perangkat, dan histori data melalui dashboard web.",
+    "Sistem monitoring biogas berbasis IoT untuk memantau flowrate, tekanan, suhu, daya biogas, status perangkat, dan histori data melalui dashboard web.",
 };
 
 export default function RootLayout({

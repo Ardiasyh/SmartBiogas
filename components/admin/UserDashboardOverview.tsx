@@ -6,9 +6,11 @@ import { motion } from "framer-motion";
 import {
   Activity,
   BatteryCharging,
+  Gauge,
   Users,
   Wifi,
   WifiOff,
+  Wind,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -24,9 +26,17 @@ import {
 } from "recharts";
 
 import { db } from "@/lib/firebase";
+import { AREA_CHART_MARGIN, paddedChartDomain } from "@/lib/chart-domain";
 import { watchDeviceTelemetry } from "@/lib/device-telemetry";
-import { watchRecentHistory, type HistoryPoint } from "@/lib/device-history";
-import type { Telemetry } from "@/lib/telemetry";
+import { watchHistoryFrom, type HistoryPoint } from "@/lib/device-history";
+import { DEVICE_OFFLINE_TIMEOUT_MS, type Telemetry } from "@/lib/telemetry";
+import {
+  CHART_RANGE_LABELS,
+  ChartRangeSelector,
+  chartRangeStart,
+  formatChartTick,
+  type ChartRange,
+} from "@/components/charts/user/ChartRangeSelector";
 import EmissionComparisonCard from "@/components/impact/EmissionComparisonCard";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -43,20 +53,40 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 
-const OFFLINE_THRESHOLD = 15_000;
-const HISTORY_LIMIT_PER_DEVICE = 20;
-
-type EnergyUnit = "kwh" | "mj";
+type PowerUnit = "kw" | "w";
 
 type RawLog = {
   timestamp: number;
-  energy: number;
+  powerKw: number;
+  flowrate: number;
+  pressure: number;
 };
 
-const energyChartConfig = {
-  energy: {
-    label: "Energi",
+type SystemChartPoint = {
+  time: string;
+  powerKw: number;
+  flowrate: number;
+  pressure: number;
+};
+
+const powerChartConfig = {
+  powerKw: {
+    label: "Daya biogas",
     color: "var(--chart-4)",
+  },
+} satisfies ChartConfig;
+
+const flowChartConfig = {
+  flowrate: {
+    label: "Flowrate",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig;
+
+const pressureChartConfig = {
+  pressure: {
+    label: "Tekanan",
+    color: "var(--chart-3)",
   },
 } satisfies ChartConfig;
 
@@ -71,36 +101,37 @@ const deviceChartConfig = {
   },
 } satisfies ChartConfig;
 
-function formatTime(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function convertEnergy(value: number, unit: EnergyUnit) {
-  return unit === "mj" ? value * 3.6 : value;
+function convertPower(value: number, unit: PowerUnit) {
+  return unit === "w" ? value * 1000 : value;
 }
 
 export default function AdminDashboardOverview() {
-  const [totalEnergy, setTotalEnergy] = useState(0);
+  const [totalPowerKw, setTotalPowerKw] = useState(0);
   const [totalFlowRate, setTotalFlowRate] = useState(0);
   const [activeUsers, setActiveUsers] = useState(0);
   const [onlineDevices, setOnlineDevices] = useState(0);
   const [offlineDevices, setOfflineDevices] = useState(0);
+  const [warningDevices, setWarningDevices] = useState(0);
   const [rawLogs, setRawLogs] = useState<RawLog[]>([]);
-  const [energyUnit, setEnergyUnit] = useState<EnergyUnit>("kwh");
+  const [powerUnit, setPowerUnit] = useState<PowerUnit>("kw");
+  const [historyRange, setHistoryRange] = useState<ChartRange>("7d");
 
   const chartData = useMemo(
     () =>
-      rawLogs.map((log) => ({
-        time: formatTime(log.timestamp),
-        energy: convertEnergy(log.energy, energyUnit),
+      compactEnergyData(rawLogs).map((log) => ({
+        time: formatChartTick(log.timestamp, historyRange),
+        powerKw: convertPower(log.powerKw, powerUnit),
+        flowrate: log.flowrate,
+        pressure: log.pressure,
       })),
-    [rawLogs, energyUnit],
+    [rawLogs, powerUnit, historyRange],
   );
+  const powerDomain = paddedChartDomain(chartData.map((point) => point.powerKw));
+  const flowDomain = paddedChartDomain(chartData.map((point) => point.flowrate));
+  const pressureDomain = paddedChartDomain(chartData.map((point) => point.pressure));
 
   useEffect(() => {
+    const historyFrom = chartRangeStart(historyRange);
     const telemetry = new Map<string, Telemetry | null>();
     const histories = new Map<string, HistoryPoint[]>();
     const telemetryStops = new Map<string, () => void>();
@@ -113,12 +144,15 @@ export default function AdminDashboardOverview() {
 
       const now = Date.now();
       const onlineValues = values.filter(
-        (value) => now - value.timestamp <= OFFLINE_THRESHOLD,
+        (value) => now - value.timestamp <= DEVICE_OFFLINE_TIMEOUT_MS,
       );
       const online = onlineValues.length;
 
-      setTotalEnergy(
-        values.reduce((total, value) => total + Number(value.energy || 0), 0),
+      setTotalPowerKw(
+        onlineValues.reduce((total, value) => total + Number(value.powerKw || 0), 0),
+      );
+      setWarningDevices(
+        onlineValues.filter((value) => value.status?.toLowerCase() === "warning").length,
       );
       setTotalFlowRate(
         onlineValues.reduce((total, value) => total + Number(value.flowrate || 0), 0),
@@ -130,14 +164,15 @@ export default function AdminDashboardOverview() {
     const refreshHistory = () => {
       const merged = [...histories.values()]
         .flat()
-        .map(({ timestamp, energy }) => ({
+        .map(({ timestamp, powerKw, flowrate, pressure }) => ({
           timestamp,
-          energy: Number(energy || 0),
+          powerKw: Number(powerKw || 0),
+          flowrate: Number(flowrate || 0),
+          pressure: Number(pressure || 0),
         }))
-        .sort((a, b) => a.timestamp - b.timestamp)
-        .slice(-20);
+        .sort((a, b) => a.timestamp - b.timestamp);
 
-      setRawLogs(merged);
+      setRawLogs(compactEnergyData(merged));
     };
 
     const unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
@@ -180,8 +215,9 @@ export default function AdminDashboardOverview() {
         if (!historyStops.has(deviceId)) {
           historyStops.set(
             deviceId,
-            watchRecentHistory(
+            watchHistoryFrom(
               deviceId,
+              historyFrom,
               (history) => {
                 histories.set(deviceId, history);
                 refreshHistory();
@@ -191,7 +227,6 @@ export default function AdminDashboardOverview() {
                 histories.set(deviceId, []);
                 refreshHistory();
               },
-              HISTORY_LIMIT_PER_DEVICE,
             ),
           );
         }
@@ -213,9 +248,9 @@ export default function AdminDashboardOverview() {
       telemetry.clear();
       histories.clear();
     };
-  }, []);
+  }, [historyRange]);
 
-  const displayEnergy = convertEnergy(totalEnergy, energyUnit);
+  const displayPower = convertPower(totalPowerKw, powerUnit);
   const totalDevices = onlineDevices + offlineDevices;
   const onlinePercent = totalDevices > 0 ? Math.round((onlineDevices / totalDevices) * 100) : 0;
 
@@ -236,7 +271,7 @@ export default function AdminDashboardOverview() {
               </Badge>
             </div>
             <CardDescription>
-              Ringkasan energi, pengguna, dan konektivitas perangkat dari Firebase.
+              Ringkasan daya biogas, kondisi sensor, dan konektivitas perangkat dari Firebase.
             </CardDescription>
           </div>
 
@@ -250,6 +285,9 @@ export default function AdminDashboardOverview() {
             <div>
               <p className="text-xs text-muted-foreground">System health</p>
               <p className="text-sm font-medium">{onlinePercent}% perangkat online</p>
+              {warningDevices > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-300">{warningDevices} perangkat memberi status warning</p>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -258,20 +296,20 @@ export default function AdminDashboardOverview() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           index={0}
-          title="Total Energi Sistem"
-          value={displayEnergy.toFixed(3)}
-          unit={energyUnit === "kwh" ? "kWh" : "MJ"}
-          helper="Akumulasi nilai realtime seluruh device"
+          title="Total Daya Sistem"
+          value={displayPower.toFixed(3)}
+          unit={powerUnit === "kw" ? "kW" : "W"}
+          helper="Jumlah daya sesaat dari perangkat online"
           icon={Zap}
           tone="violet"
           extra={
             <select
-              value={energyUnit}
-              onChange={(event) => setEnergyUnit(event.target.value as EnergyUnit)}
+              value={powerUnit}
+              onChange={(event) => setPowerUnit(event.target.value as PowerUnit)}
               className="h-8 rounded-md border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-2 focus:ring-ring/40"
             >
-              <option value="kwh">kWh</option>
-              <option value="mj">MJ</option>
+              <option value="kw">kW</option>
+              <option value="w">W</option>
             </select>
           }
         />
@@ -287,7 +325,7 @@ export default function AdminDashboardOverview() {
           index={2}
           title="Device Online"
           value={onlineDevices}
-          helper="Update diterima dalam 15 detik"
+          helper="Update diterima dalam 30 detik"
           icon={Wifi}
           tone="cyan"
         />
@@ -310,30 +348,28 @@ export default function AdminDashboardOverview() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.75fr)]">
         <Card className="overflow-hidden">
-          <CardHeader className="flex flex-row items-start justify-between gap-4 border-b bg-muted/20">
+          <CardHeader className="flex flex-col gap-4 border-b bg-muted/20 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-base">Trend energi terbaru</CardTitle>
-              <CardDescription className="mt-1">20 data histori terakhir dari seluruh perangkat</CardDescription>
+              <CardTitle className="text-base">Trend daya terbaru</CardTitle>
+              <CardDescription className="mt-1">
+                {CHART_RANGE_LABELS[historyRange]} terakhir · {rawLogs.length} sampel seluruh perangkat
+              </CardDescription>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-violet-600 dark:text-violet-300">
-              <BatteryCharging className="h-4 w-4" />
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+              <div className="flex h-9 w-9 items-center justify-center self-end rounded-lg border bg-background text-violet-600 dark:text-violet-300">
+                <BatteryCharging className="h-4 w-4" />
+              </div>
+              <ChartRangeSelector value={historyRange} onChange={setHistoryRange} />
             </div>
           </CardHeader>
 
           <CardContent className="p-0">
             {chartData.length === 0 ? (
-              <div className="flex h-[350px] items-center justify-center text-sm text-muted-foreground">Belum ada histori energi.</div>
+              <div className="flex h-[350px] items-center justify-center text-sm text-muted-foreground">Belum ada histori daya.</div>
             ) : (
-              <ChartContainer config={energyChartConfig} className="h-[350px] w-full aspect-auto px-2 pb-4 pt-5 sm:px-4">
-                <AreaChart accessibilityLayer data={chartData} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="adminEnergyFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-energy)" stopOpacity={0.30} />
-                      <stop offset="95%" stopColor="var(--color-energy)" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-
-                  <CartesianGrid vertical={false} strokeDasharray="3 5" />
+              <ChartContainer config={powerChartConfig} className="h-[350px] w-full aspect-auto px-2 pb-4 pt-5 sm:px-4">
+                <AreaChart accessibilityLayer data={chartData} margin={AREA_CHART_MARGIN}>
+                  <CartesianGrid vertical={false} />
                   <XAxis
                     dataKey="time"
                     tickLine={false}
@@ -342,32 +378,28 @@ export default function AdminDashboardOverview() {
                     tickMargin={10}
                   />
                   <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    width={58}
-                    tickMargin={8}
-                    tickFormatter={(value) => Number(value).toFixed(2)}
+                    hide
+                    domain={powerDomain}
                   />
                   <ChartTooltip
-                    cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }}
+                    cursor={{ stroke: "var(--border)", strokeDasharray: "3 4" }}
                     content={
                       <ChartTooltipContent
                         indicator="line"
-                        valueFormatter={(value) => `${Number(value).toFixed(3)} ${energyUnit === "kwh" ? "kWh" : "MJ"}`}
+                        valueFormatter={(value) => `${Number(value).toFixed(3)} ${powerUnit === "kw" ? "kW" : "W"}`}
                       />
                     }
                   />
                   <Area
                     type="monotone"
-                    dataKey="energy"
-                    stroke="var(--color-energy)"
-                    fill="url(#adminEnergyFill)"
-                    strokeWidth={2.25}
+                    dataKey="powerKw"
+                    stroke="var(--color-powerKw)"
+                    fill="var(--color-powerKw)"
+                    fillOpacity={0.12}
+                    strokeWidth={2}
                     dot={false}
-                    activeDot={{ r: 4, strokeWidth: 2, fill: "var(--background)" }}
-                    isAnimationActive
-                    animationDuration={900}
-                    animationEasing="ease-out"
+                    activeDot={{ r: 3, strokeWidth: 0 }}
+                    isAnimationActive={false}
                   />
                 </AreaChart>
               </ChartContainer>
@@ -422,7 +454,122 @@ export default function AdminDashboardOverview() {
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <SystemMetricChart
+          title="Flowrate seluruh sistem"
+          description="Rata-rata flowrate dari seluruh perangkat pada rentang terpilih."
+          data={chartData}
+          dataKey="flowrate"
+          unit="m³/h"
+          domain={flowDomain}
+          config={flowChartConfig}
+          icon={<Wind className="h-4 w-4" />}
+        />
+        <SystemMetricChart
+          title="Tekanan seluruh sistem"
+          description="Rata-rata tekanan dari seluruh perangkat pada rentang terpilih."
+          data={chartData}
+          dataKey="pressure"
+          unit="kPa"
+          domain={pressureDomain}
+          config={pressureChartConfig}
+          icon={<Gauge className="h-4 w-4" />}
+        />
+      </div>
     </div>
+  );
+}
+
+function compactEnergyData(points: RawLog[], maxPoints = 120) {
+  if (points.length <= maxPoints) return points;
+
+  const bucketSize = Math.ceil(points.length / maxPoints);
+  const compacted: RawLog[] = [];
+  for (let index = 0; index < points.length; index += bucketSize) {
+    const bucket = points.slice(index, index + bucketSize);
+    compacted.push({
+      timestamp: Math.round(bucket.reduce((sum, point) => sum + point.timestamp, 0) / bucket.length),
+      powerKw: bucket.reduce((sum, point) => sum + point.powerKw, 0) / bucket.length,
+      flowrate: bucket.reduce((sum, point) => sum + point.flowrate, 0) / bucket.length,
+      pressure: bucket.reduce((sum, point) => sum + point.pressure, 0) / bucket.length,
+    });
+  }
+  return compacted;
+}
+
+function SystemMetricChart({
+  title,
+  description,
+  data,
+  dataKey,
+  unit,
+  domain,
+  config,
+  icon,
+}: {
+  title: string;
+  description: string;
+  data: SystemChartPoint[];
+  dataKey: "flowrate" | "pressure";
+  unit: string;
+  domain: [number, number];
+  config: ChartConfig;
+  icon: ReactNode;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="flex flex-row items-start justify-between gap-4 border-b bg-muted/20">
+        <div>
+          <CardTitle className="text-base">{title}</CardTitle>
+          <CardDescription className="mt-1">{description}</CardDescription>
+        </div>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background text-sky-600 dark:text-sky-300">
+          {icon}
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {data.length === 0 ? (
+          <div className="flex h-[290px] items-center justify-center text-sm text-muted-foreground">
+            Belum ada histori perangkat.
+          </div>
+        ) : (
+          <ChartContainer config={config} className="h-[290px] min-h-[290px] w-full aspect-auto px-2 pb-3 pt-4 sm:px-4">
+            <AreaChart accessibilityLayer data={data} margin={AREA_CHART_MARGIN}>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="time"
+                tickLine={false}
+                axisLine={false}
+                minTickGap={28}
+                tickMargin={8}
+              />
+              <YAxis hide domain={domain} />
+              <ChartTooltip
+                cursor={{ stroke: "var(--border)", strokeDasharray: "3 4" }}
+                content={
+                  <ChartTooltipContent
+                    indicator="line"
+                    valueFormatter={(value) => `${Number(value).toFixed(3)} ${unit}`}
+                  />
+                }
+              />
+              <Area
+                type="monotone"
+                dataKey={dataKey}
+                stroke={`var(--color-${dataKey})`}
+                fill={`var(--color-${dataKey})`}
+                fillOpacity={0.12}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 3, strokeWidth: 0 }}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ChartContainer>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
